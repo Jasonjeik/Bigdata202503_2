@@ -1,0 +1,49 @@
+# =============================
+# MovieLover Dashboard Requirements
+# Updated: 2025-11-21
+# =============================
+
+# --- Core App & UI ---
+streamlit>=1.39.0
+plotly>=5.22.0
+requests>=2.31.0
+
+# --- Data & Utilities ---
+pandas>=2.1.0
+numpy>=1.26.0
+rapidfuzz>=3.0.0
+joblib>=1.3.0
+tqdm>=4.66.0
+
+# --- Machine Learning / NLP ---
+scikit-learn>=1.6.0
+torch>=2.2.0
+transformers>=4.44.0
+datasets>=2.18.0
+evaluate>=0.4.0
+sentencepiece>=0.2.0
+accelerate>=0.31.0
+optuna>=3.5.0
+
+# --- Visualization & Analysis ---
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# --- Database & Networking ---
+pymongo>=4.6.0
+dnspython>=2.4.0
+certifi>=2024.8.0
+
+# --- Language Detection ---
+langdetect>=1.0.9
+
+# --- Optional (comment out if not needed) ---
+# pillow>=10.0.0          # Image processing (possible future enhancements)
+# qrcode>=7.4.0           # QR code generation for quick access
+# python-dotenv>=1.0.0    # Environment variable management
+
+# Notes:
+# - Torch version pinned as minimal; adjust for CUDA if using GPU (e.g., install via PyTorch index).
+# - Helsinki-NLP translation models require sentencepiece.
+# - accelerate improves transformer inference/training efficiency.
+# - Remove optuna if hyperparameter tuning not run in production.
