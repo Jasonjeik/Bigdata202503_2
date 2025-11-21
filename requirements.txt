@@ -1,0 +1,8 @@
+# Dependencias para el proyecto de análisis de sentimiento
+# Proyecto educativo - Big Data 2025-03
+
+# Procesamiento de lenguaje natural
+textblob==0.17.1
+
+# Interfaz de línea de comandos
+colorama==0.4.6

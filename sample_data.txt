@@ -1,0 +1,33 @@
+# Sample Data - Movie Comments
+# Educational Application - Non-commercial purpose
+# Comments in English for better sentiment analysis accuracy
+
+# Positive Comments
+This movie is absolutely incredible, the best I've seen this year
+I loved every minute, the performances are spectacular and the plot is engaging
+Excellent movie, highly recommended for the whole family, we loved it
+A cinema masterpiece, impeccable direction and stunning visual effects
+Simply perfect, it made me laugh and cry, an unforgettable experience
+Outstanding film, brilliant acting and amazing storytelling
+Wonderful movie, exceeded all my expectations
+Fantastic, one of the best movies ever made
+
+# Negative Comments
+I didn't like it at all, very boring and completely predictable
+Terrible movie, a complete waste of time and money
+Awful acting, the plot makes no sense whatsoever
+Disappointing, I expected much more from this director
+The worst movie I've seen, I don't recommend it to anyone
+Horrible film, terrible script and poor execution
+Really bad, couldn't wait for it to end
+Dreadful movie, a complete disaster
+
+# Neutral Comments
+The movie is acceptable, nothing extraordinary but entertaining
+It has its good and bad moments, overall it's okay
+Not bad but not memorable either, it's average
+Meets expectations, without major surprises
+It's a normal movie, neither very good nor very bad
+Decent film, worth watching if you have time
+Okay movie, some good scenes but forgettable
+Average at best, nothing special
