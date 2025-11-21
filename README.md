@@ -23,6 +23,10 @@ Aplicación para análisis de sentimiento de comentarios de películas utilizand
 - Python 3.8 o superior
 - Dependencias listadas en `requirements.txt`
 
+## 🚀 Inicio Rápido
+
+¿Primera vez usando la aplicación? Lee nuestra **[Guía de Inicio Rápido](QUICKSTART.md)** para instrucciones paso a paso.
+
 ## 💻 Instalación
 
 ```bash
@@ -32,6 +36,9 @@ cd Bigdata202503_2
 
 # Instalar dependencias
 pip install -r requirements.txt
+
+# Descargar datos necesarios de NLTK
+python -m textblob.download_corpora
 ```
 
 ## 🎯 Uso

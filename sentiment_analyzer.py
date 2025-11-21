@@ -43,7 +43,7 @@ class SentimentAnalyzer:
         Returns:
             dict: Diccionario con polaridad, subjetividad y clasificación
         """
-        # Traducir y analizar con TextBlob
+        # Analizar con TextBlob (optimizado para inglés)
         # Para simplificación educativa, usamos análisis directo
         blob = TextBlob(text)
         
@@ -210,9 +210,9 @@ def main():
     else:
         parser.print_help()
         print(f"\n{Fore.YELLOW}💡 Ejemplos de uso:{Style.RESET_ALL}")
-        print('   python sentiment_analyzer.py "Me encantó esta película"')
+        print('   python sentiment_analyzer.py "I loved this movie"')
         print('   python sentiment_analyzer.py --demo')
-        print('   echo "Gran película" | python sentiment_analyzer.py --batch\n')
+        print('   echo "Great movie" | python sentiment_analyzer.py --batch\n')
 
 
 if __name__ == "__main__":
