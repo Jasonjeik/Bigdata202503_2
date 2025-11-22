@@ -4,8 +4,9 @@ Test script to verify translation and sentiment analysis pipeline
 import sys
 from pathlib import Path
 
-# Add dashboard to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Asegurar que el directorio 'dashboard' esté en PYTHONPATH para importar utils
+BASE_DIR = Path(__file__).resolve().parent.parent / 'dashboard'
+sys.path.insert(0, str(BASE_DIR))
 
 from utils.language import detect_language, translate_to_english
 from utils.models import ModelManager

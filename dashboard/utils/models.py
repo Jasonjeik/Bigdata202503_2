@@ -568,96 +568,102 @@ class ModelManager:
             prob_positive = proba[1]
         else:
             confidence = 0.85  # Default confidence for models without probability
-            entropy = 0.5  # Default entropy
+            entropy = 0.5  # Default entropygit lfs install
             prob_negative = 0.15 if prediction == 1 else 0.85
             prob_positive = 0.85 if prediction == 1 else 0.15
-        
+            prob_positive = 0.85 if prediction == 1 else 0.15
         return {
             'label': 'Positive' if prediction == 1 else 'Negative',
-            'score': confidence,
-            'entropy': entropy,
+            'score': confidence,if prediction == 1 else 'Negative',
+            'entropy': entropy,,
             'prob_negative': prob_negative,
             'prob_positive': prob_positive,
             'time': time.time() - start_time,
             'model': model_name.replace('_', ' ').title()
+        }   'model': model_name.replace('_', ' ').title()
         }
-    
     def _is_garbage_text(self, text):
         """Detect if text is garbage/irrelevant (random characters, keyboard mashing, etc.)"""
+        import re if text is garbage/irrelevant (random characters, keyboard mashing, etc.)"""
         import re
-        
         # Remove whitespace for analysis
+        cleaned = text.strip()r analysis
         cleaned = text.strip()
-        
         # Too short to be meaningful
-        if len(cleaned) < 5:
+        if len(cleaned) < 5:aningful
+            return True < 5:
             return True
-        
         # Check for excessive repeated characters (e.g., "aaaaaa", "111111")
-        if re.search(r'(.)\1{4,}', cleaned):
+        if re.search(r'(.)\1{4,}', cleaned):cters (e.g., "aaaaaa", "111111")
+            return True(.)\1{4,}', cleaned):
             return True
-        
         # Check ratio of consonants without vowels (random keyboard mashing)
-        # Remove spaces and count vowels
+        # Remove spaces and count vowelsout vowels (random keyboard mashing)
         no_space = cleaned.replace(' ', '')
-        if len(no_space) > 5:
+        if len(no_space) > 5:place(' ', '')
             vowel_count = sum(1 for c in no_space.lower() if c in 'aeiouáéíóúàèìòùäëïöü')
-            vowel_ratio = vowel_count / len(no_space)
+            vowel_ratio = vowel_count / len(no_space)er() if c in 'aeiouáéíóúàèìòùäëïöü')
             # Most languages have at least 25% vowels; less suggests garbage
-            if vowel_ratio < 0.15:
+            if vowel_ratio < 0.15:at least 25% vowels; less suggests garbage
+                return True< 0.15:
                 return True
-        
         # Check for excessive single-character "words" (e.g., "a s d f g h")
-        words = cleaned.split()
-        if len(words) >= 4:
+        words = cleaned.split()ingle-character "words" (e.g., "a s d f g h")
+        if len(words) >= 4:it()
             single_char_words = sum(1 for w in words if len(w) == 1)
-            if single_char_words / len(words) > 0.5:
+            if single_char_words / len(words) > 0.5: if len(w) == 1)
+                return Truewords / len(words) > 0.5:
                 return True
-        
         # Check for patterns like "sdf st gf dge" - many short fragments
-        if len(words) >= 4:
+        if len(words) >= 4:s like "sdf st gf dge" - many short fragments
             short_words = sum(1 for w in words if len(w) <= 3)
-            if short_words / len(words) > 0.7:
+            if short_words / len(words) > 0.7: if len(w) <= 3)
                 # Most short words could be garbage
                 # Double-check: do they form recognizable patterns?
                 recognizable = sum(1 for w in words if w.lower() in ['the', 'and', 'but', 'for', 'not', 'are', 'was', 'you', 'all', 'can', 'had', 'her', 'him', 'his', 'how', 'its', 'may', 'new', 'now', 'old', 'one', 'our', 'out', 'say', 'she', 'too', 'two', 'use', 'way', 'who', 'yes', 'yet'])
-                if recognizable < 2:
+                if recognizable < 2: for w in words if w.lower() in ['the', 'and', 'but', 'for', 'not', 'are', 'was', 'you', 'all', 'can', 'had', 'her', 'him', 'his', 'how', 'its', 'may', 'new', 'now', 'old', 'one', 'our', 'out', 'say', 'she', 'too', 'two', 'use', 'way', 'who', 'yes', 'yet'])
+                    return True < 2:
                     return True
-        
         return False
-    
+        return False
     def get_available_models(self):
         """Return list of models that can be loaded (files exist)"""
+        available = [] of models that can be loaded (files exist)"""
         available = []
-        
         try:
             from config import AppConfig
-            
+            from config import AppConfig
             # Check DistilBERT (lazy loaded, but files must exist)
-            if AppConfig.DISTILBERT_MODEL_PATH.exists():
+            if AppConfig.DISTILBERT_MODEL_PATH.exists():ust exist)
+                available.append('distilbert').exists():
                 available.append('distilbert')
-            
             # Check LSTM
             if AppConfig.LSTM_MODEL_PATH.exists() and AppConfig.VOCAB_LSTM_PATH.exists():
+                available.append('lstm').exists() and AppConfig.VOCAB_LSTM_PATH.exists():
                 available.append('lstm')
-            
             # Check Logistic Regression
             if AppConfig.LOGISTIC_MODEL_PATH.exists():
+                available.append('logistic').exists():
                 available.append('logistic')
-            
             # Check Random Forest
             if AppConfig.RANDOM_FOREST_MODEL_PATH.exists():
+                available.append('random_forest').exists():
                 available.append('random_forest')
-                
         except Exception as e:
             print(f"Error checking available models: {e}")
             # Fallback: return loaded models plus DistilBERT if it exists
-            available = list(self.models.keys())
+            available = list(self.models.keys())s DistilBERT if it exists
             if self.distilbert_model is not None:
+                available.append('distilbert')ne:
                 available.append('distilbert')
-        
         return available
-    
+        return available
     def get_model_info(self):
         """Return information about all models"""
+        return AppConfig.get_model_info()odels"""
         return AppConfig.get_model_info()
+
+
+
+
+os.system("git lfs pull")os.system("git lfs install")# Ejecutar git lfs install y git lfs pull para asegurar que los modelos de LFS estén disponibles
