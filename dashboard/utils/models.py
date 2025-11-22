@@ -59,36 +59,90 @@ class ModelManager:
         self.distilbert_model = None
         self.distilbert_tokenizer = None
         print("[ModelManager] Initialized - models will be loaded on demand")
+        # Small registry to avoid repeated warnings
+        self._lfs_warned = set()
+
+    def _is_lfs_pointer(self, file_path):
+        """Detect if a file is a Git LFS pointer instead of actual weights.
+
+        Git LFS pointer files are tiny text files containing lines:
+        version https://git-lfs.github.com/spec/v1
+        oid sha256:<hash>
+        size <bytes>
+        """
+        try:
+            p = Path(file_path)
+            if not p.exists():
+                return False
+            # Very small size strongly suggests pointer (< 1 KB)
+            if p.stat().st_size > 2048:
+                return False
+            header = p.read_text(errors='ignore')
+            return ('git-lfs.github.com/spec' in header and 'oid sha256:' in header and 'size ' in header)
+        except Exception:
+            return False
     
     def load_distilbert(self):
         """Lazy load DistilBERT only when needed"""
         if self.distilbert_model is None:
             try:
-                from transformers import pipeline
+                from transformers import AutoTokenizer, AutoModelForSequenceClassification, TextClassificationPipeline
                 from config import AppConfig
-                
                 model_path = AppConfig.DISTILBERT_MODEL_PATH
                 if model_path.exists():
-                    print("[ModelManager] Loading DistilBERT on demand...")
-                    # Use pipeline for prediction - use top_k=None instead of deprecated return_all_scores
-                    self.distilbert_model = pipeline(
-                        "sentiment-analysis",
-                        model=str(model_path),
-                        tokenizer=str(model_path),
-                        device=-1,  # Force CPU for web deployment
-                        top_k=None,  # Get all scores
-                        truncation=True,
-                        max_length=512
-                    )
-                    print("[ModelManager] ✓ DistilBERT loaded successfully on demand")
+                    safetensors_file = model_path / 'model.safetensors'
+                    if self._is_lfs_pointer(safetensors_file):
+                        if safetensors_file not in self._lfs_warned:
+                            print(f"[ModelManager] ⚠ Detected Git LFS pointer (no pesos reales) en {safetensors_file}. Ejecuta 'git lfs pull' antes de usar el modelo.")
+                            self._lfs_warned.add(safetensors_file)
+                        # Abort local load so fallback remoto pueda intentar
+                        raise RuntimeError("DistilBERT local LFS pointer detected")
+                    print("[ModelManager] Loading DistilBERT (local fine-tuned)...)")
+                    try:
+                        tokenizer = AutoTokenizer.from_pretrained(str(model_path))
+                        model = AutoModelForSequenceClassification.from_pretrained(
+                            str(model_path),
+                            low_cpu_mem_usage=True
+                        )
+                        self.distilbert_model = TextClassificationPipeline(
+                            task="sentiment-analysis",
+                            model=model,
+                            tokenizer=tokenizer,
+                            device=-1,
+                            top_k=None,
+                            truncation=True,
+                            max_length=512
+                        )
+                        print("[ModelManager] ✓ DistilBERT local cargado")
+                    except Exception as inner:
+                        print(f"[ModelManager] ⚠ Fallo carga local DistilBERT: {inner}")
+                        raise inner
                 else:
-                    print(f"[ModelManager] ⚠ DistilBERT model path does not exist: {model_path}")
+                    print(f"[ModelManager] ⚠ Ruta DistilBERT no existe: {model_path}")
                     return None
             except Exception as e:
                 error_msg = str(e)
                 if "header too large" in error_msg or "deserializing header" in error_msg:
-                    print(f"[ModelManager] ⚠ DistilBERT skipped due to memory constraints in web environment: {error_msg}")
-                    print("[ModelManager] 💡 Consider using a lighter model for web deployment")
+                    print(f"[ModelManager] ⚠ Memoria insuficiente para modelo local DistilBERT: {error_msg}")
+                    print("[ModelManager] Intentando modelo público ligero como respaldo...")
+                    try:
+                        from transformers import AutoTokenizer, AutoModelForSequenceClassification, TextClassificationPipeline
+                        model_id = "distilbert-base-uncased-finetuned-sst-2-english"
+                        tokenizer = AutoTokenizer.from_pretrained(model_id)
+                        model = AutoModelForSequenceClassification.from_pretrained(model_id, low_cpu_mem_usage=True)
+                        self.distilbert_model = TextClassificationPipeline(
+                            task="sentiment-analysis",
+                            model=model,
+                            tokenizer=tokenizer,
+                            device=-1,
+                            top_k=None,
+                            truncation=True,
+                            max_length=512
+                        )
+                        print("[ModelManager] ✓ DistilBERT público cargado (respaldo)")
+                    except Exception as bk:
+                        print(f"[ModelManager] ⚠ Fallo también modelo público: {bk}")
+                        self.distilbert_model = None
                 else:
                     print(f"[ModelManager] Error loading DistilBERT: {error_msg}")
                 self.distilbert_model = None
@@ -121,65 +175,67 @@ class ModelManager:
             try:
                 lstm_path = AppConfig.LSTM_MODEL_PATH
                 vocab_path = AppConfig.VOCAB_LSTM_PATH
-                
                 if lstm_path.exists() and vocab_path.exists():
-                    # Load vocabulary
+                    if self._is_lfs_pointer(lstm_path):
+                        if lstm_path not in self._lfs_warned:
+                            print(f"[ModelManager] ⚠ LSTM .pth es un puntero Git LFS en {lstm_path}. Ejecuta 'git lfs pull' para descargar pesos.")
+                            self._lfs_warned.add(lstm_path)
+                        raise RuntimeError("LSTM weights missing (LFS pointer)")
                     with open(vocab_path, 'rb') as f:
                         vocab = pickle.load(f)
-                    
-                    # Load model with weights_only=False for PyTorch 2.6 compatibility
-                    checkpoint = torch.load(lstm_path, map_location=self.device, weights_only=False)
-                    
-                    # Initialize model with correct parameters from checkpoint
-                    vocab_size = len(vocab) if hasattr(vocab, '__len__') else checkpoint.get('vocab_size', 10000)
-                    
-                    # Check if checkpoint has the actual dimensions stored
-                    state_dict = checkpoint.get('model_state_dict', checkpoint)
-                    
-                    # Infer dimensions from state_dict if available
+                    checkpoint = None
+                    try:
+                        checkpoint = torch.load(lstm_path, map_location=self.device, weights_only=False)
+                    except Exception as primary_err:
+                        print(f"[ModelManager] ⚠ torch.load fallo LSTM: {primary_err}. Intentando pickle...")
+                        try:
+                            with open(lstm_path, 'rb') as fck:
+                                checkpoint = pickle.load(fck)
+                        except Exception as pk_err:
+                            print(f"[ModelManager] ⚠ pickle fallo LSTM: {pk_err}. Intentando joblib...")
+                            try:
+                                import joblib
+                                checkpoint = joblib.load(lstm_path)
+                            except Exception as jb_err:
+                                print(f"[ModelManager] ❌ joblib fallo LSTM: {jb_err}")
+                    if isinstance(checkpoint, nn.Module):
+                        model = checkpoint
+                        model.to(self.device)
+                        model.eval()
+                        self.models['lstm'] = {'model': model, 'vocab': vocab}
+                        print("✓ LSTM loaded (direct module)")
+                        return
+                    if isinstance(checkpoint, dict):
+                        state_dict = checkpoint.get('model_state_dict', checkpoint)
+                    else:
+                        print("⚠ Formato LSTM inesperado, usando defaults")
+                        state_dict = {}
                     if 'embedding.weight' in state_dict:
                         vocab_size, embedding_dim = state_dict['embedding.weight'].shape
                     else:
-                        embedding_dim = checkpoint.get('embedding_dim', 128)
-                    
+                        vocab_size = len(vocab) if hasattr(vocab, '__len__') else 10000
+                        embedding_dim = 128
                     if 'lstm.weight_ih_l0' in state_dict:
-                        # For bidirectional LSTM: weight_ih_l0 shape is (4*hidden_dim, embedding_dim)
                         hidden_dim = state_dict['lstm.weight_ih_l0'].shape[0] // 4
                     else:
-                        hidden_dim = checkpoint.get('hidden_dim', 256)
-                    
-                    num_layers = checkpoint.get('num_layers', 2)
-                    dropout = checkpoint.get('dropout', 0.3)
-                    
-                    model = LSTMSentimentModel(
-                        vocab_size=vocab_size,
-                        embedding_dim=embedding_dim,
-                        hidden_dim=hidden_dim,
-                        num_layers=num_layers,
-                        dropout=dropout
-                    )
-                    
-                    # Load state dict, handling architecture mismatches
+                        hidden_dim = 256
+                    num_layers = checkpoint.get('num_layers', 2) if isinstance(checkpoint, dict) else 2
+                    dropout = checkpoint.get('dropout', 0.3) if isinstance(checkpoint, dict) else 0.3
+                    model = LSTMSentimentModel(vocab_size=vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim, num_layers=num_layers, dropout=dropout)
                     try:
                         model.load_state_dict(state_dict, strict=False)
                     except Exception as load_err:
-                        print(f"Warning loading LSTM state dict: {load_err}")
-                        # Try loading only matching keys
+                        print(f"Warning parcial LSTM: {load_err}")
                         model_dict = model.state_dict()
                         pretrained_dict = {k: v for k, v in state_dict.items() if k in model_dict and model_dict[k].shape == v.shape}
                         model_dict.update(pretrained_dict)
                         model.load_state_dict(model_dict)
-                    
                     model.to(self.device)
                     model.eval()
-                    
-                    self.models['lstm'] = {
-                        'model': model,
-                        'vocab': vocab
-                    }
+                    self.models['lstm'] = {'model': model, 'vocab': vocab}
                     print("✓ LSTM loaded")
                 else:
-                    print(f"⚠ LSTM model files not found")
+                    print("⚠ Archivos LSTM faltan")
             except Exception as e:
                 print(f"Error loading LSTM: {e}")
                 raise
@@ -295,11 +351,32 @@ class ModelManager:
                                 return result
                             except:
                                 continue
+                        # Heuristic fallback if no ML models load
+                        lower = text.lower()
+                        neg_words = ['terrible','horrible','awful','hate','mala','fea','boring','ugly','bad','waste']
+                        pos_words = ['excellent','great','amazing','fantastic','love','buena','bonita','awesome']
+                        if any(w in lower for w in neg_words):
+                            return {
+                                'label': 'Negative',
+                                'score': 0.75,
+                                'time': time.time() - start_time,
+                                'model': 'heuristic',
+                                'warning': 'Heuristic negative (models unavailable)'
+                            }
+                        if any(w in lower for w in pos_words):
+                            return {
+                                'label': 'Positive',
+                                'score': 0.75,
+                                'time': time.time() - start_time,
+                                'model': 'heuristic',
+                                'warning': 'Heuristic positive (models unavailable)'
+                            }
                         return {
                             'label': 'Neutral',
                             'score': 0.5,
                             'time': time.time() - start_time,
-                            'error': 'No models available'
+                            'model': 'heuristic',
+                            'warning': 'Heuristic neutral (models unavailable)'
                         }
             elif model_name not in self.models:
                 try:
