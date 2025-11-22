@@ -55,11 +55,48 @@ class ModelManager:
     def __init__(self):
         self.models = {}
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        # Remove automatic loading - load on demand
+        # Initialize DistilBERT as None for lazy loading
+        self.distilbert_model = None
+        self.distilbert_tokenizer = None
         print("[ModelManager] Initialized - models will be loaded on demand")
     
+    def load_distilbert(self):
+        """Lazy load DistilBERT only when needed"""
+        if self.distilbert_model is None:
+            try:
+                from transformers import pipeline
+                from config import AppConfig
+                
+                model_path = AppConfig.DISTILBERT_MODEL_PATH
+                if model_path.exists():
+                    print("[ModelManager] Loading DistilBERT on demand...")
+                    # Use pipeline for prediction - use top_k=None instead of deprecated return_all_scores
+                    self.distilbert_model = pipeline(
+                        "sentiment-analysis",
+                        model=str(model_path),
+                        tokenizer=str(model_path),
+                        device=-1,  # Force CPU for web deployment
+                        top_k=None,  # Get all scores
+                        truncation=True,
+                        max_length=512
+                    )
+                    print("[ModelManager] ✓ DistilBERT loaded successfully on demand")
+                else:
+                    print(f"[ModelManager] ⚠ DistilBERT model path does not exist: {model_path}")
+                    return None
+            except Exception as e:
+                error_msg = str(e)
+                if "header too large" in error_msg or "deserializing header" in error_msg:
+                    print(f"[ModelManager] ⚠ DistilBERT skipped due to memory constraints in web environment: {error_msg}")
+                    print("[ModelManager] 💡 Consider using a lighter model for web deployment")
+                else:
+                    print(f"[ModelManager] Error loading DistilBERT: {error_msg}")
+                self.distilbert_model = None
+                return None
+        return self.distilbert_model
+    
     def _load_model(self, model_name):
-        """Load a specific model on demand"""
+        """Load a specific model on demand (except DistilBERT which uses lazy loading)"""
         if model_name in self.models:
             return  # Already loaded
         
@@ -75,41 +112,10 @@ class ModelManager:
             spec.loader.exec_module(config_module)
             AppConfig = config_module.AppConfig
         
+        # Skip DistilBERT - it uses lazy loading now
         if model_name == 'distilbert':
-            try:
-                from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
-                model_path = AppConfig.DISTILBERT_MODEL_PATH
-                if model_path.exists():
-                    # For web deployment, try to load with memory optimization
-                    try:
-                        model = DistilBertForSequenceClassification.from_pretrained(
-                            str(model_path), 
-                            low_cpu_mem_usage=True
-                        ).to(self.device)
-                        tokenizer = DistilBertTokenizer.from_pretrained(str(model_path))
-                        
-                        self.models['distilbert'] = {
-                            'model': model,
-                            'tokenizer': tokenizer
-                        }
-                        self.models['distilbert']['model'].eval()
-                        print("✓ DistilBERT loaded")
-                    except Exception as mem_error:
-                        if "header too large" in str(mem_error) or "deserializing header" in str(mem_error):
-                            print(f"⚠ DistilBERT skipped due to memory constraints in web environment: {mem_error}")
-                            # Don't raise, just skip this model
-                            return
-                        else:
-                            raise mem_error
-                else:
-                    print(f"⚠ DistilBERT model path does not exist: {model_path}")
-            except Exception as e:
-                print(f"Error loading DistilBERT: {e}")
-                # For web deployment, don't fail if DistilBERT can't load
-                if "web" in str(e).lower() or "memory" in str(e).lower() or "header" in str(e).lower():
-                    print("⚠ Skipping DistilBERT due to environment constraints")
-                    return
-                raise
+            print("[ModelManager] DistilBERT uses lazy loading - will load when first used")
+            return
         
         elif model_name == 'lstm':
             try:
@@ -275,7 +281,27 @@ class ModelManager:
         
         try:
             # Load model if not already loaded
-            if model_name not in self.models:
+            if model_name == 'distilbert':
+                # Use lazy loading for DistilBERT
+                if self.distilbert_model is None:
+                    self.load_distilbert()
+                    if self.distilbert_model is None:
+                        # Fallback to another model if DistilBERT fails to load
+                        fallback_models = ['lstm', 'logistic', 'random_forest']
+                        for fallback in fallback_models:
+                            try:
+                                result = self.predict_sentiment(text, fallback)
+                                result['warning'] = 'DistilBERT unavailable, using fallback model'
+                                return result
+                            except:
+                                continue
+                        return {
+                            'label': 'Neutral',
+                            'score': 0.5,
+                            'time': time.time() - start_time,
+                            'error': 'No models available'
+                        }
+            elif model_name not in self.models:
                 try:
                     self._load_model(model_name)
                 except Exception as load_error:
@@ -322,40 +348,68 @@ class ModelManager:
             }
     
     def _predict_distilbert(self, text, start_time):
-        """Predict using DistilBERT"""
-        model_dict = self.models['distilbert']
-        tokenizer = model_dict['tokenizer']
-        model = model_dict['model']
+        """Predict using DistilBERT pipeline"""
+        model = self.distilbert_model
         
-        # Tokenize
-        inputs = tokenizer(
-            text,
-            return_tensors='pt',
-            truncation=True,
-            padding=True,
-            max_length=512
-        ).to(self.device)
+        if model is None:
+            return {
+                'label': 'Error',
+                'score': 0.5,
+                'time': time.time() - start_time,
+                'error': 'DistilBERT model not loaded'
+            }
         
-        # Predict
-        with torch.no_grad():
-            outputs = model(**inputs)
-            probs = torch.softmax(outputs.logits, dim=1)
-            prediction = torch.argmax(probs, dim=1).item()
-            confidence = probs[0][prediction].item()
+        try:
+            # Use pipeline for prediction
+            results = model(text)
             
-            # Calculate entropy: -sum(p * log(p)) - measures uncertainty
-            entropy = -(probs[0][0] * torch.log2(probs[0][0] + 1e-10) + 
-                       probs[0][1] * torch.log2(probs[0][1] + 1e-10)).item()
-        
-        return {
-            'label': 'Positive' if prediction == 1 else 'Negative',
-            'score': confidence,
-            'entropy': entropy,
-            'prob_negative': probs[0][0].item(),
-            'prob_positive': probs[0][1].item(),
-            'time': time.time() - start_time,
-            'model': 'DistilBERT'
-        }
+            # Pipeline returns [[{label, score}, ...]] - nested list
+            if results and len(results) > 0 and len(results[0]) > 0:
+                predictions = results[0]  # Get the first (and only) prediction list
+                
+                # Find the prediction with highest score
+                best_result = max(predictions, key=lambda x: x['score'])
+                label = best_result['label']
+                score = best_result['score']
+                
+                # Convert to our format
+                is_positive = 'POSITIVE' in label.upper() or 'LABEL_1' in label.upper()
+                
+                # Get probabilities for both classes
+                pos_result = next((r for r in predictions if 'POSITIVE' in r['label'].upper() or 'LABEL_1' in r['label'].upper()), None)
+                neg_result = next((r for r in predictions if 'NEGATIVE' in r['label'].upper() or 'LABEL_0' in r['label'].upper()), None)
+                
+                prob_positive = pos_result['score'] if pos_result else (score if is_positive else 1-score)
+                prob_negative = neg_result['score'] if neg_result else (1-score if is_positive else score)
+                
+                # Calculate entropy
+                entropy = -(prob_negative * np.log2(prob_negative + 1e-10) + 
+                           prob_positive * np.log2(prob_positive + 1e-10))
+                
+                return {
+                    'label': 'Positive' if is_positive else 'Negative',
+                    'score': score,
+                    'entropy': entropy,
+                    'prob_negative': prob_negative,
+                    'prob_positive': prob_positive,
+                    'time': time.time() - start_time,
+                    'model': 'DistilBERT'
+                }
+            else:
+                return {
+                    'label': 'Neutral',
+                    'score': 0.5,
+                    'time': time.time() - start_time,
+                    'error': 'No prediction results from DistilBERT'
+                }
+                
+        except Exception as e:
+            return {
+                'label': 'Error',
+                'score': 0.5,
+                'time': time.time() - start_time,
+                'error': f'DistilBERT prediction error: {str(e)}'
+            }
     
     def _predict_lstm(self, text, start_time):
         """Predict using LSTM"""
@@ -479,7 +533,7 @@ class ModelManager:
         try:
             from config import AppConfig
             
-            # Check DistilBERT
+            # Check DistilBERT (lazy loaded, but files must exist)
             if AppConfig.DISTILBERT_MODEL_PATH.exists():
                 available.append('distilbert')
             
@@ -497,8 +551,10 @@ class ModelManager:
                 
         except Exception as e:
             print(f"Error checking available models: {e}")
-            # Fallback: return loaded models
+            # Fallback: return loaded models plus DistilBERT if it exists
             available = list(self.models.keys())
+            if self.distilbert_model is not None:
+                available.append('distilbert')
         
         return available
     
