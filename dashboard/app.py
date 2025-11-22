@@ -284,7 +284,7 @@ with st.sidebar:
     st.markdown('Primary Model')
     selected_model = st.selectbox(
         "",
-        ["DistilBERT", "LSTM Deep Learning", "Logistic Regression", "Random Forest"],
+        ["DistilBERT (Recommended)", "LSTM Deep Learning", "Logistic Regression", "Random Forest"],
         help="Choose the sentiment analysis model",
         label_visibility="collapsed"
     )
@@ -676,7 +676,8 @@ elif page == "Movie Catalog":
                                 "LSTM Deep Learning": "lstm",
                                 "Logistic Regression": "logistic", 
                                 "Random Forest": "random_forest",
-                                "DistilBERT (High Memory)": "distilbert"
+                                "DistilBERT (Recommended)": "distilbert",
+                                "DistilBERT": "distilbert"
                             }
                             model_name = model_name_map.get(selected_model, "lstm")  # Default to LSTM
                             sentiment_result = st.session_state.model_manager.predict_sentiment(
@@ -731,14 +732,8 @@ elif page == "Live Analytics":
             st.rerun()
     
     with col_auto:
-        # Auto-refresh toggle
-        auto_refresh = st.toggle("Auto-refresh", value=False, help="Automatically refresh every 10 seconds")
-    
-    # Auto-refresh implementation
-    if auto_refresh:
-        import time
-        time.sleep(10)
-        st.rerun()
+        # Manual refresh instruction
+        st.caption("💡 Use 🔄 button to see latest reviews")
     
     # Load all reviews from database (shared across all sessions)
     all_reviews = get_all_reviews_from_db()
