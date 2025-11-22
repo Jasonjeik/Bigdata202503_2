@@ -157,6 +157,21 @@ st.markdown("""
         display: block;
         margin-bottom: 0.25rem;
     }
+    /* Target the actual selectbox widget inside the sidebar so the dropdown has a light-gray background */
+    section[data-testid="stSidebar"] .stSelectbox > div,
+    section[data-testid="stSidebar"] div[data-baseweb="select"] > div,
+    section[data-testid="stSidebar"] div[role="combobox"],
+    section[data-testid="stSidebar"] div[role="listbox"],
+    section[data-testid="stSidebar"] select {
+        background-color: #f2f2f2 !important;
+        color: #111827 !important;
+        padding: 0.35rem 0.5rem !important;
+        border-radius: 0.375rem !important;
+    }
+    /* Ensure selectbox text is dark on the light background when inside sidebar */
+    section[data-testid="stSidebar"] .stSelectbox, section[data-testid="stSidebar"] .stSelectbox * {
+        color: #111827 !important;
+    }
 
     /* White color for subheaders/titles */
     h3, .stSubheader {
