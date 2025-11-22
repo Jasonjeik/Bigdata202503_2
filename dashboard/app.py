@@ -144,6 +144,20 @@ st.markdown("""
         color: inherit !important;
     }
 
+    /* Primary Model label box (light gray background inside sidebar) */
+    .primary-model-box {
+        background-color: #f2f2f2 !important; /* gris claro */
+        padding: 0.5rem;
+        border-radius: 0.375rem;
+        margin-bottom: 0.5rem;
+    }
+    .primary-model-label {
+        font-weight: 600;
+        color: #111827 !important;
+        display: block;
+        margin-bottom: 0.25rem;
+    }
+
     /* White color for subheaders/titles */
     h3, .stSubheader {
         color: #ffffff !important;
@@ -232,10 +246,16 @@ with st.sidebar:
     
     # Model selection
     st.subheader("Model Configuration")
+    # Render a styled box for the Primary Model label and use a collapsed label on the selectbox
+    st.markdown(
+        '<div class="primary-model-box"><span class="primary-model-label">Primary Model</span></div>',
+        unsafe_allow_html=True
+    )
     selected_model = st.selectbox(
-        "Primary Model",
-        ["LSTM Deep Learning", "Logistic Regression", "Random Forest", "DistilBERT (High Memory)"],
-        help="Choose the sentiment analysis model. DistilBERT loads on-demand to save memory."
+        "",
+        ["DistilBERT (Recommended)", "LSTM Deep Learning", "Logistic Regression", "Random Forest"],
+        help="Choose the sentiment analysis model",
+        label_visibility="collapsed"
     )
     
     st.divider()
