@@ -210,6 +210,24 @@ def _style_plotly(fig):
         pass
     return fig
 
+# Helper function to get all reviews from database
+def get_all_reviews_from_db():
+    """Get all reviews from database for shared viewing across sessions"""
+    if st.session_state.db_manager.is_connected():
+        try:
+            reviews = st.session_state.db_manager.get_reviews(limit=1000)
+            # Convert ObjectId to string for compatibility
+            for review in reviews:
+                if '_id' in review:
+                    review['_id'] = str(review['_id'])
+                if 'movie_id' in review and hasattr(review['movie_id'], '__str__'):
+                    review['movie_id'] = str(review['movie_id'])
+            return reviews
+        except Exception as e:
+            print(f"Error loading reviews: {e}")
+            return []
+    return []
+
 # Initialize session state
 if 'db_manager' not in st.session_state:
     st.session_state.db_manager = DatabaseManager()
@@ -217,13 +235,13 @@ if 'model_manager' not in st.session_state:
     st.session_state.model_manager = ModelManager()
 if 'movie_catalog' not in st.session_state:
     st.session_state.movie_catalog = MovieCatalog(st.session_state.db_manager)
-if 'user_reviews' not in st.session_state:
-    st.session_state.user_reviews = []
 if 'current_page' not in st.session_state:
     st.session_state.current_page = 'home'
 if 'session_id' not in st.session_state:
     import uuid
     st.session_state.session_id = str(uuid.uuid4())
+if 'admin_mode' not in st.session_state:
+    st.session_state.admin_mode = False
 
 # Navigation handling with query params
 page_map = {
@@ -300,16 +318,46 @@ with st.sidebar:
     
     # Get total reviews from database
     total_reviews_db = 0
+    session_reviews_count = 0
     if st.session_state.db_manager.is_connected():
         try:
             stats = st.session_state.db_manager.get_review_statistics()
             if stats:
                 total_reviews_db = stats.get('total_reviews', 0)
+            # Count reviews from this session
+            all_reviews = get_all_reviews_from_db()
+            session_reviews_count = sum(1 for r in all_reviews if r.get('session_id') == st.session_state.session_id)
         except:
             pass
     
     st.metric("Total Reviews (All Users)", total_reviews_db)
-    st.metric("Your Reviews (This Session)", len(st.session_state.user_reviews))
+    st.metric("Your Reviews (This Session)", session_reviews_count)
+    
+    # Admin reset button
+    st.divider()
+    if not st.session_state.admin_mode:
+        with st.expander("🔐 Admin Controls", expanded=False):
+            admin_password = st.text_input("Admin Password", type="password", key="admin_pass")
+            if st.button("Unlock Admin", key="unlock_admin"):
+                # Simple password check (you can change this password)
+                if admin_password == "demo2025":
+                    st.session_state.admin_mode = True
+                    st.success("Admin mode activated")
+                    st.rerun()
+                else:
+                    st.error("Invalid password")
+    else:
+        st.success("🔓 Admin Mode Active")
+        if st.button("🗑️ Reset All Reviews", type="primary", help="Delete all reviews from database (for demo reset)"):
+            if st.session_state.db_manager.is_connected():
+                deleted_count = st.session_state.db_manager.clear_all_reviews()
+                st.success(f"✅ {deleted_count} reviews deleted successfully")
+                st.rerun()
+            else:
+                st.error("Database not connected")
+        if st.button("🔒 Lock Admin", type="secondary"):
+            st.session_state.admin_mode = False
+            st.rerun()
 
 # Main content area
 if page == "Home":
@@ -383,18 +431,22 @@ if page == "Home":
     with col2:
         # Get total reviews from database
         total_reviews = 0
+        session_reviews_count = 0
         if st.session_state.db_manager.is_connected():
             try:
                 stats = st.session_state.db_manager.get_review_statistics()
                 if stats:
                     total_reviews = stats.get('total_reviews', 0)
+                # Count reviews from this session
+                all_reviews = get_all_reviews_from_db()
+                session_reviews_count = sum(1 for r in all_reviews if r.get('session_id') == st.session_state.session_id)
             except:
                 pass
         
         st.metric(
             label="Total Reviews",
             value=total_reviews,
-            delta=f"+{len(st.session_state.user_reviews)} this session"
+            delta=f"+{session_reviews_count} this session"
         )
     
     with col3:
@@ -429,9 +481,6 @@ if page == "Home":
                     active_participants = stats.get('active_participants', 0)
             except:
                 pass
-        # Fallback: count session IDs from local session reviews if DB empty
-        if active_participants == 0 and st.session_state.user_reviews:
-            active_participants = 1
         st.metric(
             label="Active Participants",
             value=active_participants
@@ -652,7 +701,7 @@ elif page == "Movie Catalog":
                                 'timestamp': datetime.now()
                             }
 
-                            st.session_state.user_reviews.append(review_data)
+                            # Save directly to database (shared across all sessions)
                             st.session_state.db_manager.save_review(review_data)
 
                             lang_note = f" (translated from {detected_lang})" if translated_flag else ""
@@ -672,43 +721,27 @@ elif page == "Movie Catalog":
         show_review_dialog()
 
 elif page == "Live Analytics":
-    col_title, col_refresh = st.columns([4, 1])
+    st.markdown('<p class="main-header">📊 Live Analytics Dashboard</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">Real-time sentiment analysis across all participants</p>', unsafe_allow_html=True)
     
-    with col_title:
-        st.write("")  # Spacing
-        if st.button("🔄 Refresh Data", help="Load latest reviews from all sessions", type="primary"):
+    col_refresh, col_auto = st.columns([3, 1])
+    
+    with col_refresh:
+        if st.button("🔄 Refresh Data", help="Load latest reviews from all sessions", type="primary", use_container_width=True):
             st.rerun()
     
-    # Load reviews from database (shared across all sessions)
-    db_reviews = []
-    if st.session_state.db_manager.is_connected():
-        try:
-            db_reviews = st.session_state.db_manager.get_reviews(limit=1000)
-            # Convert ObjectId to string for compatibility
-            for review in db_reviews:
-                if '_id' in review:
-                    review['_id'] = str(review['_id'])
-                if 'movie_id' in review and hasattr(review['movie_id'], '__str__'):
-                    review['movie_id'] = str(review['movie_id'])
-        except Exception as e:
-            st.warning(f"Error loading reviews from database: {e}")
+    with col_auto:
+        # Auto-refresh toggle
+        auto_refresh = st.toggle("Auto-refresh", value=False, help="Automatically refresh every 10 seconds")
     
-    # Combine database reviews with session reviews (avoid duplicates)
-    all_reviews = db_reviews.copy()
-    session_review_ids = set()
+    # Auto-refresh implementation
+    if auto_refresh:
+        import time
+        time.sleep(10)
+        st.rerun()
     
-    # Add session reviews that aren't already in database
-    for review in st.session_state.user_reviews:
-        review_signature = f"{review.get('movie_id')}_{review.get('timestamp')}"
-        if review_signature not in session_review_ids:
-            session_review_ids.add(review_signature)
-            # Only add if not already in db_reviews
-            if not any(
-                str(r.get('movie_id')) == str(review.get('movie_id')) and 
-                r.get('timestamp') == review.get('timestamp') 
-                for r in db_reviews
-            ):
-                all_reviews.append(review)
+    # Load all reviews from database (shared across all sessions)
+    all_reviews = get_all_reviews_from_db()
     
     if not all_reviews:
         st.info("No reviews collected yet. Visit the Movie Catalog to start collecting audience feedback.")

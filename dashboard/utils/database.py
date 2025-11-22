@@ -454,6 +454,20 @@ class DatabaseManager:
             print(f"Error getting trending movies: {e}")
             return []
     
+    def clear_all_reviews(self):
+        """
+        Delete all reviews from the database (admin function for demo reset)
+        
+        Returns:
+            Number of reviews deleted
+        """
+        try:
+            result = self.reviews.delete_many({})
+            return result.deleted_count
+        except Exception as e:
+            print(f"Error clearing reviews: {e}")
+            return 0
+    
     def close(self):
         """Close database connection"""
         if self.client:
