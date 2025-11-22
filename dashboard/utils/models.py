@@ -432,45 +432,45 @@ class ModelManager:
     def _predict_distilbert(self, text, start_time):
         """Predict using DistilBERT pipeline"""
         model = self.distilbert_model
-        
+        # Logging explícito para depuración
+        print(f"[DistilBERT] Input: {text}")
         if model is None:
+            print("[DistilBERT] ERROR: Modelo no cargado")
             return {
                 'label': 'Error',
                 'score': 0.5,
                 'time': time.time() - start_time,
-                'error': 'DistilBERT model not loaded'
+                'error': 'DistilBERT model not loaded',
+                'debug': 'not_loaded'
             }
-        
+        # Identificar si es modelo local, público o fallback
+        model_type = 'unknown'
         try:
-            # Use pipeline for prediction
+            model_id = getattr(model.model, 'name_or_path', None)
+            if model_id:
+                if 'distilbert_final' in model_id:
+                    model_type = 'local_finetuned'
+                elif 'distilbert-base-uncased-finetuned-sst-2-english' in model_id:
+                    model_type = 'public_backup'
+                else:
+                    model_type = model_id
+            print(f"[DistilBERT] Usando modelo: {model_type}")
             results = model(text)
-            
-            # Pipeline returns [[{label, score}, ...]] - nested list
+            print(f"[DistilBERT] Raw results: {results}")
             if results and len(results) > 0 and len(results[0]) > 0:
-                predictions = results[0]  # Get the first (and only) prediction list
-                
-                # Find the prediction with highest score
+                predictions = results[0]
                 best_result = max(predictions, key=lambda x: x['score'])
                 label = best_result['label']
                 score = best_result['score']
-                
-                # Convert to our format
-                # DistilBERT fine-tuned model: LABEL_1 or POSITIVE = Positive sentiment
-                # LABEL_0 or NEGATIVE = Negative sentiment
                 is_positive = ('POSITIVE' in label.upper() or 'LABEL_1' in label.upper() or 
                               label.upper() == '1' or 'POS' in label.upper())
-                
-                # Get probabilities for both classes
                 pos_result = next((r for r in predictions if 'POSITIVE' in r['label'].upper() or 'LABEL_1' in r['label'].upper() or '1' == r['label'].upper()), None)
                 neg_result = next((r for r in predictions if 'NEGATIVE' in r['label'].upper() or 'LABEL_0' in r['label'].upper() or '0' == r['label'].upper()), None)
-                
                 prob_positive = pos_result['score'] if pos_result else (score if is_positive else 1-score)
                 prob_negative = neg_result['score'] if neg_result else (1-score if is_positive else score)
-                
-                # Calculate entropy
                 entropy = -(prob_negative * np.log2(prob_negative + 1e-10) + 
                            prob_positive * np.log2(prob_positive + 1e-10))
-                
+                print(f"[DistilBERT] Predicción: {'Positive' if is_positive else 'Negative'}, Score: {score}, Prob_Pos: {prob_positive}, Prob_Neg: {prob_negative}, Entropy: {entropy}")
                 return {
                     'label': 'Positive' if is_positive else 'Negative',
                     'score': score,
@@ -478,22 +478,37 @@ class ModelManager:
                     'prob_negative': prob_negative,
                     'prob_positive': prob_positive,
                     'time': time.time() - start_time,
-                    'model': 'DistilBERT'
+                    'model': 'DistilBERT',
+                    'model_type': model_type,
+                    'debug': {
+                        'input': text,
+                        'raw_results': results,
+                        'label': label,
+                        'score': score,
+                        'prob_positive': prob_positive,
+                        'prob_negative': prob_negative,
+                        'entropy': entropy
+                    }
                 }
             else:
+                print("[DistilBERT] ERROR: No prediction results")
                 return {
                     'label': 'Neutral',
                     'score': 0.5,
                     'time': time.time() - start_time,
-                    'error': 'No prediction results from DistilBERT'
+                    'error': 'No prediction results from DistilBERT',
+                    'debug': 'no_results',
+                    'model_type': model_type
                 }
-                
         except Exception as e:
+            print(f"[DistilBERT] ERROR: {str(e)}")
             return {
                 'label': 'Error',
                 'score': 0.5,
                 'time': time.time() - start_time,
-                'error': f'DistilBERT prediction error: {str(e)}'
+                'error': f'DistilBERT prediction error: {str(e)}',
+                'debug': 'exception',
+                'model_type': model_type
             }
     
     def _predict_lstm(self, text, start_time):

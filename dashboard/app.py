@@ -1061,29 +1061,42 @@ elif page == "Model Comparison":
                 for idx, row in results_df.iterrows():
                     with st.container():
                         st.markdown(f"### {row['Model']}")
-                        
+                        # Mostrar tipo de modelo y debug info si es DistilBERT
+                        if 'distilbert' in row['Model'].lower():
+                            # Buscar el resultado real en la lista results
+                            debug_info = None
+                            model_type = None
+                            for r in results:
+                                if 'distilbert' in r['Model'].lower():
+                                    debug_info = r.get('debug', None)
+                                    model_type = r.get('model_type', None)
+                                    break
+                            if model_type:
+                                if model_type != 'local_finetuned':
+                                    st.caption(f"⚠️ DistilBERT: Usando modelo '{model_type}' (no fine-tuned local)")
+                                else:
+                                    st.caption(f"✅ DistilBERT: Fine-tuned local")
+                            if debug_info:
+                                with st.expander("Debug info (DistilBERT)"):
+                                    st.json(debug_info)
                         # Show fallback warning
                         if row['Is Fallback']:
                             st.caption("⚠️ Model not available - using fallback")
-                        
                         col_a, col_b, col_c, col_d = st.columns(4)
                         with col_a:
                             st.metric("Prediction", row['Prediction'])
                         with col_b:
                             st.metric("Confidence", f"{row['Confidence']:.2%}")
                         with col_c:
-                            st.metric("Entropy", f"{row['Entropy']:.3f}", 
-                                     help="Lower = more certain (0=certain, 1=uncertain)")
+                            st.metric("Entropy", f"{row['Entropy']:.3f}", help="Lower = more certain (0=certain, 1=uncertain)")
                         with col_d:
                             st.metric("Time", f"{row['Processing Time']:.3f}s")
-                        
                         # Show probability distribution
                         col_prob1, col_prob2 = st.columns(2)
                         with col_prob1:
                             st.caption(f"🟢 Positive: {row['Prob Positive']:.1%}")
                         with col_prob2:
                             st.caption(f"🔴 Negative: {row['Prob Negative']:.1%}")
-                        
                         st.progress(row['Confidence'])
                         st.divider()
             
