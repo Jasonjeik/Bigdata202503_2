@@ -23,11 +23,49 @@ from config import AppConfig
 
 # Page configuration
 st.set_page_config(
-    page_title="MovieLover - AI Sentiment Analysis",
+    page_title="MovieLovers - AI Sentiment Analysis",
     page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Check model availability at startup (for debugging deployment issues)
+print("=== MODEL AVAILABILITY CHECK ===")
+try:
+    from utils.models import ModelManager
+    mm = ModelManager()
+    
+    # Check DistilBERT
+    distil_path = AppConfig.DISTILBERT_MODEL_PATH / 'model.safetensors'
+    if distil_path.exists():
+        if mm._is_lfs_pointer(distil_path):
+            print(f"⚠ DistilBERT: LFS pointer detected at {distil_path} - run 'git lfs pull'")
+        else:
+            print(f"✓ DistilBERT: Real weights found ({distil_path.stat().st_size} bytes)")
+    else:
+        print(f"✗ DistilBERT: File not found at {distil_path}")
+    
+    # Check LSTM
+    lstm_path = AppConfig.LSTM_MODEL_PATH
+    if lstm_path.exists():
+        if mm._is_lfs_pointer(lstm_path):
+            print(f"⚠ LSTM: LFS pointer detected at {lstm_path} - run 'git lfs pull'")
+        else:
+            print(f"✓ LSTM: Real weights found ({lstm_path.stat().st_size} bytes)")
+    else:
+        print(f"✗ LSTM: File not found at {lstm_path}")
+        
+    # Check sklearn models
+    for model_name in ['logistic', 'random_forest']:
+        model_path = getattr(AppConfig, f"{model_name.upper()}_MODEL_PATH", None)
+        if model_path and model_path.exists():
+            print(f"✓ {model_name}: Found ({model_path.stat().st_size} bytes)")
+        else:
+            print(f"✗ {model_name}: File not found")
+            
+except Exception as e:
+    print(f"Error during model check: {e}")
+print("=== END MODEL CHECK ===\n")
 
 # Custom CSS for professional appearance
 st.markdown("""
@@ -262,7 +300,7 @@ default_index = list(page_map.values()).index(page_map.get(query_page, "Home"))
 # Sidebar navigation
 with st.sidebar:
     st.image("https://freesvg.org/img/Movie-Projector-Icon.png", width=80)
-    st.title(" MovieLover")
+    st.title(" MovieLovers")
 
     page = st.radio(
         "Select View",
@@ -367,7 +405,7 @@ if page == "Home":
     with col1:
       
         st.markdown("""
-        ### Welcome to MovieLover!
+        ### Welcome to MovieLovers!
         
         Your intelligent movie companion powered by advanced machine learning.
         Share your passion for cinema:
@@ -730,9 +768,6 @@ elif page == "Movie Catalog":
         show_review_dialog()
 
 elif page == "Live Analytics":
-    st.markdown('<p class="main-header">📊 Live Analytics Dashboard</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Real-time sentiment analysis across all participants</p>', unsafe_allow_html=True)
-    
     col_refresh, col_auto = st.columns([3, 1])
     
     with col_refresh:
@@ -741,7 +776,7 @@ elif page == "Live Analytics":
     
     with col_auto:
         # Manual refresh instruction
-        st.caption("💡 Use 🔄 button to see latest reviews")
+        st.caption(" Use 🔄 button to see latest reviews")
     
     # Load all reviews from database (shared across all sessions)
     all_reviews = get_all_reviews_from_db()
