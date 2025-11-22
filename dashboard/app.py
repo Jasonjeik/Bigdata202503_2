@@ -333,6 +333,18 @@ with st.sidebar:
             st.caption("✅ DistilBERT listo (pesos cargados)")
         else:
             st.caption("⚠ DistilBERT no disponible, se usarán fallbacks")
+        # Botón para forzar recarga de DistilBERT (útil si pesos cambiaron o había fallback anterior)
+        if st.button("Recargar DistilBERT"):
+            try:
+                st.session_state.model_manager.distilbert_model = None
+                reloaded = st.session_state.model_manager.load_distilbert()
+                st.session_state.distilbert_ready = reloaded is not None
+                if reloaded is not None:
+                    st.success("DistilBERT recargado correctamente")
+                else:
+                    st.error("No se pudo recargar DistilBERT")
+            except Exception as e:
+                st.error(f"Error al recargar: {e}")
     selected_model = st.selectbox(
         "",
         ["DistilBERT (Recommended)", "LSTM Deep Learning", "Logistic Regression", "Random Forest"],
@@ -1046,7 +1058,9 @@ elif page == "Model Comparison":
                     'Processing Time': result.get('time', 0),
                     'Original Language': detected_lang,
                     'Translated': translated_flag,
-                    'Is Fallback': is_fallback
+                    'Is Fallback': is_fallback,
+                    'model_type': result.get('model_type'),
+                    'debug': result.get('debug')
                 })
             
             results_df = pd.DataFrame(results)
