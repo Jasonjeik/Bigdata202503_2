@@ -334,7 +334,7 @@ with st.sidebar:
         else:
             st.caption("⚠ DistilBERT no disponible, se usarán fallbacks")
     selected_model = st.selectbox(
-        "",
+        "Seleccionar Modelo",
         ["DistilBERT", "LSTM Deep Learning", "Logistic Regression", "Random Forest"],
         help="Choose the sentiment analysis model",
         label_visibility="collapsed",
@@ -1476,7 +1476,7 @@ elif page == "Model Architecture":
                 **Limitations:**
                 - Highest computational requirements
                 - Longest inference time
-                - Requires GPU for practical deployment
+                - Requires GPU for practical deployment 
                 - Black-box interpretability
                 """)
         
