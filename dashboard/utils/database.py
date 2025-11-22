@@ -348,40 +348,95 @@ class DatabaseManager:
         try:
             review_data['timestamp'] = datetime.now()
             result = self.reviews.insert_one(review_data)
+            print(f"✓ Review saved to MongoDB with ID: {result.inserted_id}")
             return result.inserted_id
         except Exception as e:
-            print(f"Error saving review: {e}")
-            # Fallback storage if Atlas space quota exceeded
-            if 'space quota' in str(e).lower():
+            error_msg = str(e)
+            print(f"⚠ Error saving review to MongoDB: {error_msg}")
+            
+            # Fallback storage if Atlas space quota exceeded OR any other error
+            if 'space quota' in error_msg.lower() or 'quota' in error_msg.lower() or 'AtlasError' in error_msg:
+                print(f"⚠ MongoDB Atlas space quota exceeded (using {review_data.get('movie_title', 'N/A')})")
+                print("💾 Falling back to local file storage...")
                 try:
                     from pathlib import Path
                     import json
                     backup_path = Path(__file__).parent.parent / 'local_reviews_backup.jsonl'
-                    review_data['timestamp'] = datetime.now()  # ensure timestamp
-                    review_data['storage_fallback'] = 'local_file'
+                    review_data['timestamp'] = str(datetime.now()) if isinstance(review_data.get('timestamp'), datetime) else review_data.get('timestamp', str(datetime.now()))
+                    review_data['storage_fallback'] = 'local_file_quota_exceeded'
                     with open(backup_path, 'a', encoding='utf-8') as f:
                         f.write(json.dumps(review_data, default=str) + '\n')
-                    print(f"Space quota reached. Stored review locally at {backup_path}")
+                    print(f"✓ Review stored locally at {backup_path}")
                     return 'local-backup'
                 except Exception as fe:
-                    print(f"Local backup failed: {fe}")
+                    print(f"✗ Local backup also failed: {fe}")
+                    return None
             return None
     
     def get_reviews(self, movie_id=None, limit=100):
-        """Get reviews, optionally filtered by movie"""
+        """Get reviews from MongoDB and local backup, optionally filtered by movie"""
+        all_reviews = []
+        
+        # Try to get from MongoDB first
         try:
             query = {}
             if movie_id:
                 query['movie_id'] = movie_id
             
-            return list(self.reviews.find(query).sort('timestamp', -1).limit(limit))
+            mongo_reviews = list(self.reviews.find(query).sort('timestamp', -1).limit(limit))
+            all_reviews.extend(mongo_reviews)
+            print(f"✓ Loaded {len(mongo_reviews)} reviews from MongoDB")
         except Exception as e:
-            print(f"Error getting reviews: {e}")
-            return []
+            print(f"⚠ Error getting reviews from MongoDB: {e}")
+        
+        # Also load from local backup if it exists (for demo when MongoDB is full)
+        try:
+            from pathlib import Path
+            import json
+            backup_path = Path(__file__).parent.parent / 'local_reviews_backup.jsonl'
+            if backup_path.exists():
+                with open(backup_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.strip():
+                            try:
+                                review = json.loads(line)
+                                # Convert timestamp string back to datetime if needed
+                                if isinstance(review.get('timestamp'), str):
+                                    from dateutil.parser import parse
+                                    try:
+                                        review['timestamp'] = parse(review['timestamp'])
+                                    except:
+                                        pass
+                                # Filter by movie_id if specified
+                                if movie_id is None or str(review.get('movie_id')) == str(movie_id):
+                                    all_reviews.append(review)
+                            except json.JSONDecodeError:
+                                continue
+                print(f"✓ Loaded {len(all_reviews) - len(mongo_reviews)} additional reviews from local backup")
+        except Exception as e:
+            print(f"⚠ Could not load from local backup: {e}")
+        
+        # Sort by timestamp descending and limit
+        try:
+            all_reviews.sort(key=lambda x: x.get('timestamp', datetime.min), reverse=True)
+        except:
+            pass
+        
+        return all_reviews[:limit]
     
     def get_review_statistics(self):
-        """Get aggregated statistics about reviews"""
+        """Get aggregated statistics about reviews from MongoDB and local backup"""
+        stats = {
+            'total_reviews': 0,
+            'avg_rating': 0,
+            'avg_sentiment': 0,
+            'positive_count': 0,
+            'negative_count': 0,
+            'active_participants': 0
+        }
+        
         try:
+            # Try MongoDB first
             pipeline = [
                 {
                     '$group': {
@@ -404,20 +459,62 @@ class DatabaseManager:
             ]
             
             result = list(self.reviews.aggregate(pipeline))
-            stats = result[0] if result else None
-            if stats is not None:
+            mongo_stats = result[0] if result else {}
+            
+            if mongo_stats:
+                stats.update(mongo_stats)
                 try:
                     # Distinct session identifiers for active participant count
                     active_ids = self.reviews.distinct('session_id')
                     stats['active_participants'] = len([i for i in active_ids if i])
                 except Exception as e:
                     print(f"Warning computing active participants: {e}")
-                    stats['active_participants'] = 0
-            return stats
-            
+                    
         except Exception as e:
-            print(f"Error getting review statistics: {e}")
-            return None
+            print(f"⚠ Error getting MongoDB statistics: {e}")
+        
+        # Also count reviews from local backup
+        try:
+            from pathlib import Path
+            import json
+            backup_path = Path(__file__).parent.parent / 'local_reviews_backup.jsonl'
+            if backup_path.exists():
+                local_reviews = []
+                with open(backup_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.strip():
+                            try:
+                                review = json.loads(line)
+                                local_reviews.append(review)
+                            except:
+                                continue
+                
+                if local_reviews:
+                    # Add to totals
+                    stats['total_reviews'] += len(local_reviews)
+                    
+                    # Recalculate averages
+                    all_ratings = [r.get('rating', 0) for r in local_reviews if r.get('rating')]
+                    all_sentiments = [r.get('sentiment_score', 0.5) for r in local_reviews if r.get('sentiment_score')]
+                    
+                    if all_ratings:
+                        stats['avg_rating'] = (stats.get('avg_rating', 0) * (stats['total_reviews'] - len(local_reviews)) + sum(all_ratings)) / stats['total_reviews']
+                    if all_sentiments:
+                        stats['avg_sentiment'] = (stats.get('avg_sentiment', 0) * (stats['total_reviews'] - len(local_reviews)) + sum(all_sentiments)) / stats['total_reviews']
+                    
+                    # Count positive/negative
+                    stats['positive_count'] += sum(1 for r in local_reviews if r.get('sentiment_score', 0.5) > 0.5)
+                    stats['negative_count'] += sum(1 for r in local_reviews if r.get('sentiment_score', 0.5) < 0.5)
+                    
+                    # Count unique sessions
+                    local_sessions = set(r.get('session_id') for r in local_reviews if r.get('session_id'))
+                    stats['active_participants'] += len(local_sessions)
+                    
+                    print(f"✓ Added {len(local_reviews)} local backup reviews to statistics")
+        except Exception as e:
+            print(f"⚠ Could not include local backup in statistics: {e}")
+        
+        return stats if stats['total_reviews'] > 0 else None
     
     def get_trending_movies(self, days=7):
         """Get movies with most recent reviews"""
