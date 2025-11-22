@@ -1238,7 +1238,7 @@ elif page == "Model Architecture":
         """, unsafe_allow_html=True)
         
         # Model selection tabs
-        model_tabs = st.tabs(["📊 Overview", "1️⃣ Logistic Regression", "2️⃣ Random Forest", "3️⃣ LSTM", "4️⃣ DistilBERT"])
+        model_tabs = st.tabs(["Overview", "1️⃣ Logistic Regression", "2️⃣ Random Forest", "3️⃣ LSTM", "4️⃣ DistilBERT"])
         
         with model_tabs[0]:
             st.markdown("### Model Comparison Summary")
@@ -1270,7 +1270,7 @@ elif page == "Model Architecture":
                 """)
             
             with col2:
-                st.markdown("#### ⚡ Fastest Model")
+                st.markdown("#### Fastest Model")
                 st.info("""
                 **Logistic Regression**
                 - **Accuracy:** 88.40%
@@ -1481,7 +1481,7 @@ elif page == "Model Architecture":
                 """)
         
         st.markdown("---")
-        st.markdown("### 📚 References & Resources")
+        st.markdown("### - References & Resources -")
         
         col1, col2 = st.columns(2)
         
