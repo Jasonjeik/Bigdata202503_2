@@ -1083,10 +1083,17 @@ elif page == "Model Comparison":
                         if row['Is Fallback']:
                             st.caption("⚠️ Model not available - using fallback")
                         col_a, col_b, col_c, col_d = st.columns(4)
+                        # Determinar probabilidad relevante según predicción
+                        if row['Prediction'].lower() == 'positive':
+                            conf_prob = row['Prob Positive']
+                        elif row['Prediction'].lower() == 'negative':
+                            conf_prob = row['Prob Negative']
+                        else:
+                            conf_prob = row['Confidence']
                         with col_a:
                             st.metric("Prediction", row['Prediction'])
                         with col_b:
-                            st.metric("Confidence", f"{row['Confidence']:.2%}")
+                            st.metric("Confidence", f"{conf_prob:.2%}")
                         with col_c:
                             st.metric("Entropy", f"{row['Entropy']:.3f}", help="Lower = more certain (0=certain, 1=uncertain)")
                         with col_d:
@@ -1097,7 +1104,7 @@ elif page == "Model Comparison":
                             st.caption(f"🟢 Positive: {row['Prob Positive']:.1%}")
                         with col_prob2:
                             st.caption(f"🔴 Negative: {row['Prob Negative']:.1%}")
-                        st.progress(row['Confidence'])
+                        st.progress(conf_prob)
                         st.divider()
             
             with col2:
