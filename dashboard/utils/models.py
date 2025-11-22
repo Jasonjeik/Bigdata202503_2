@@ -62,29 +62,6 @@ class ModelManager:
         self._lfs_warned = set()
         print("[ModelManager] Initialized - models will be loaded on demand")
     
-    def _is_memory_limited_env(self):
-        """Detect if we're in a memory-limited environment like Streamlit Cloud"""
-        import os
-        # Check for Streamlit Cloud indicators
-        if os.getenv('STREAMLIT_SERVER_HEADLESS') == 'true':
-            return True
-        # Check hostname for common cloud patterns
-        try:
-            import socket
-            hostname = socket.gethostname().lower()
-            if any(pattern in hostname for pattern in ['streamlit', 'cloud', 'container', 'docker']):
-                return True
-        except:
-            pass
-        # Check available memory (rough estimate)
-        try:
-            import psutil
-            available_gb = psutil.virtual_memory().available / (1024**3)
-            if available_gb < 2.0:  # Less than 2GB available
-                return True
-        except:
-            pass
-        return False
         # Small registry to avoid repeated warnings
         self._lfs_warned = set()
 
@@ -351,35 +328,7 @@ class ModelManager:
         """
         start_time = time.time()
         
-        # In memory-limited environments, redirect heavy models to lighter alternatives
-        if self._is_memory_limited_env():
-            if model_name == 'distilbert':
-                # Try logistic first, then random_forest, then fallback to remote DistilBERT
-                light_models = ['logistic', 'random_forest']
-                for light_model in light_models:
-                    try:
-                        result = self.predict_sentiment(text, light_model)
-                        result['warning'] = f'Using {light_model} instead of DistilBERT (memory limited environment)'
-                        return result
-                    except:
-                        continue
-                # If sklearn models fail, try remote DistilBERT
-                try:
-                    result = self.predict_sentiment(text, 'distilbert_remote')
-                    result['warning'] = 'Using remote DistilBERT (memory limited environment)'
-                    return result
-                except:
-                    pass
-            elif model_name == 'lstm':
-                # Redirect LSTM to sklearn models in memory-limited env
-                light_models = ['logistic', 'random_forest']
-                for light_model in light_models:
-                    try:
-                        result = self.predict_sentiment(text, light_model)
-                        result['warning'] = f'Using {light_model} instead of LSTM (memory limited environment)'
-                        return result
-                    except:
-                        continue
+        # (Removed memory-limited redirection logic per user request)
         
         # Validate text quality - filter garbage/irrelevant text
         if self._is_garbage_text(text):
@@ -399,7 +348,7 @@ class ModelManager:
                     self.load_distilbert()
                     if self.distilbert_model is None:
                         # Fallback to another model if DistilBERT fails to load
-                        fallback_models = ['logistic', 'random_forest', 'lstm']
+                        fallback_models = ['lstm', 'logistic', 'random_forest']
                         for fallback in fallback_models:
                             try:
                                 result = self.predict_sentiment(text, fallback)
@@ -440,7 +389,7 @@ class ModelManager:
                 except Exception as load_error:
                     print(f"Failed to load model {model_name}: {load_error}")
                     # Try fallback models
-                    for fallback_model in ['distilbert', 'logistic', 'random_forest', 'lstm']:
+                    for fallback_model in ['distilbert', 'lstm', 'logistic', 'random_forest']:
                         if fallback_model != model_name and fallback_model in self.models:
                             print(f"Using fallback model {fallback_model}")
                             return self.predict_sentiment(text, fallback_model)
