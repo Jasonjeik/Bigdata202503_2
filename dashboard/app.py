@@ -333,18 +333,6 @@ with st.sidebar:
             st.caption("✅ DistilBERT listo (pesos cargados)")
         else:
             st.caption("⚠ DistilBERT no disponible, se usarán fallbacks")
-        # Botón para forzar recarga de DistilBERT (útil si pesos cambiaron o había fallback anterior)
-        if st.button("Recargar DistilBERT"):
-            try:
-                st.session_state.model_manager.distilbert_model = None
-                reloaded = st.session_state.model_manager.load_distilbert()
-                st.session_state.distilbert_ready = reloaded is not None
-                if reloaded is not None:
-                    st.success("DistilBERT recargado correctamente")
-                else:
-                    st.error("No se pudo recargar DistilBERT")
-            except Exception as e:
-                st.error(f"Error al recargar: {e}")
     selected_model = st.selectbox(
         "",
         ["DistilBERT (Recommended)", "LSTM Deep Learning", "Logistic Regression", "Random Forest"],
