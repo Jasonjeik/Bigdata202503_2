@@ -167,7 +167,7 @@ st.markdown("""
         background-color: #f2f2f2 !important;
         color: #111827 !important;
         padding: 0.35rem 0.5rem !important;
-        border-radius: 0.375rem !important;
+        border-radius: 0rem !important;
     }
     /* Ensure selectbox text is dark on the light background when inside sidebar */
     section[data-testid="stSidebar"] .stSelectbox, section[data-testid="stSidebar"] .stSelectbox * {
