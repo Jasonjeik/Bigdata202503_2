@@ -57,15 +57,25 @@ def main():
     # Check .env file
     check_env_file()
     
-    # Run test
+    # Run optional system check (non-interactive friendly)
     print("\nRunning system check...")
-    test_result = subprocess.run([sys.executable, "test_system.py"])
-    
-    if test_result.returncode != 0:
-        print("\n⚠ System check found issues.")
-        response = input("Continue anyway? (y/n): ")
-        if response.lower() != 'y':
-            sys.exit(1)
+    test_script = Path(__file__).parent.parent / "test" / "test_system.py"
+    if test_script.exists():
+        # Allow skipping prompts with env var LAUNCH_NON_INTERACTIVE=1
+        result = subprocess.run([sys.executable, str(test_script)])
+        if result.returncode != 0:
+            print("\n⚠ System check reported issues.")
+            if os.environ.get("LAUNCH_NON_INTERACTIVE") == "1":
+                print("Proceeding due to LAUNCH_NON_INTERACTIVE=1")
+            else:
+                try:
+                    response = input("Continue anyway? (y/n): ")
+                except EOFError:
+                    response = 'y'
+                if response.lower() != 'y':
+                    sys.exit(1)
+    else:
+        print(f"⚠ test_system.py not found at {test_script}. Skipping system check.")
     
     # Launch Streamlit
     print("\n" + "=" * 60)
@@ -75,7 +85,8 @@ def main():
     print("=" * 60 + "\n")
     
     try:
-        subprocess.run(["streamlit", "run", "app.py"])
+        app_path = Path(__file__).parent / "app.py"
+        subprocess.run(["streamlit", "run", str(app_path)])
     except KeyboardInterrupt:
         print("\n\nApplication stopped.")
         sys.exit(0)

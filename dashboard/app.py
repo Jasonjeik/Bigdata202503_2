@@ -335,9 +335,10 @@ with st.sidebar:
             st.caption("⚠ DistilBERT no disponible, se usarán fallbacks")
     selected_model = st.selectbox(
         "",
-        ["DistilBERT (Recommended)", "LSTM Deep Learning", "Logistic Regression", "Random Forest"],
+        ["DistilBERT", "LSTM Deep Learning", "Logistic Regression", "Random Forest"],
         help="Choose the sentiment analysis model",
-        label_visibility="collapsed"
+        label_visibility="collapsed",
+        index=2  # Default to Logistic Regression
     )
     
     st.divider()
@@ -730,7 +731,7 @@ elif page == "Movie Catalog":
                                 "DistilBERT (Recommended)": "distilbert",
                                 "DistilBERT": "distilbert"
                             }
-                            model_name = model_name_map.get(selected_model, "lstm")  # Default to LSTM
+                            model_name = model_name_map.get(selected_model, "logistic")  # Default to Logistic Regression
                             sentiment_result = st.session_state.model_manager.predict_sentiment(
                                 translated_text,
                                 model_name
