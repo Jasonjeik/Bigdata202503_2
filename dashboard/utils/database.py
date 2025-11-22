@@ -553,17 +553,41 @@ class DatabaseManager:
     
     def clear_all_reviews(self):
         """
-        Delete all reviews from the database (admin function for demo reset)
+        Delete all reviews from MongoDB AND local backup file (admin function for demo reset)
         
         Returns:
-            Number of reviews deleted
+            Total number of reviews deleted (MongoDB + local backup)
         """
+        total_deleted = 0
+        
+        # Delete from MongoDB
         try:
             result = self.reviews.delete_many({})
-            return result.deleted_count
+            mongo_deleted = result.deleted_count
+            total_deleted += mongo_deleted
+            print(f"✓ Deleted {mongo_deleted} reviews from MongoDB")
         except Exception as e:
-            print(f"Error clearing reviews: {e}")
-            return 0
+            print(f"⚠ Error clearing MongoDB reviews: {e}")
+        
+        # Also delete local backup file if it exists
+        try:
+            from pathlib import Path
+            backup_path = Path(__file__).parent.parent / 'local_reviews_backup.jsonl'
+            if backup_path.exists():
+                # Count lines before deleting
+                with open(backup_path, 'r', encoding='utf-8') as f:
+                    local_count = sum(1 for line in f if line.strip())
+                
+                # Delete the file
+                backup_path.unlink()
+                total_deleted += local_count
+                print(f"✓ Deleted {local_count} reviews from local backup file")
+            else:
+                print("ℹ No local backup file to delete")
+        except Exception as e:
+            print(f"⚠ Error clearing local backup: {e}")
+        
+        return total_deleted
     
     def close(self):
         """Close database connection"""
