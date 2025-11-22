@@ -55,140 +55,176 @@ class ModelManager:
     def __init__(self):
         self.models = {}
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self._load_models()
+        # Remove automatic loading - load on demand
+        print("[ModelManager] Initialized - models will be loaded on demand")
     
-    def _load_models(self):
-        """Load all pre-trained models"""
-        print("Loading models...")
+    def _load_model(self, model_name):
+        """Load a specific model on demand"""
+        if model_name in self.models:
+            return  # Already loaded
         
-        # Load DistilBERT
-        try:
-            from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
-            
-            model_path = AppConfig.DISTILBERT_MODEL_PATH
-            if model_path.exists():
-                self.models['distilbert'] = {
-                    'model': DistilBertForSequenceClassification.from_pretrained(str(model_path)).to(self.device),
-                    'tokenizer': DistilBertTokenizer.from_pretrained(str(model_path))
-                }
-                self.models['distilbert']['model'].eval()
-                print("✓ DistilBERT loaded")
-            else:
-                print(f"⚠ DistilBERT model not found at {model_path}")
-        except Exception as e:
-            print(f"Error loading DistilBERT: {e}")
+        print(f"[ModelManager] Loading {model_name}...")
         
-        # Load LSTM
         try:
-            lstm_path = AppConfig.LSTM_MODEL_PATH
-            vocab_path = AppConfig.VOCAB_LSTM_PATH
-            
-            if lstm_path.exists() and vocab_path.exists():
-                # Load vocabulary
-                with open(vocab_path, 'rb') as f:
-                    vocab = pickle.load(f)
-                
-                # Load model with weights_only=False for PyTorch 2.6 compatibility
-                checkpoint = torch.load(lstm_path, map_location=self.device, weights_only=False)
-                
-                # Initialize model with correct parameters from checkpoint
-                vocab_size = len(vocab) if hasattr(vocab, '__len__') else checkpoint.get('vocab_size', 10000)
-                
-                # Check if checkpoint has the actual dimensions stored
-                state_dict = checkpoint.get('model_state_dict', checkpoint)
-                
-                # Infer dimensions from state_dict if available
-                if 'embedding.weight' in state_dict:
-                    vocab_size, embedding_dim = state_dict['embedding.weight'].shape
-                else:
-                    embedding_dim = checkpoint.get('embedding_dim', 128)
-                
-                if 'lstm.weight_ih_l0' in state_dict:
-                    # For bidirectional LSTM: weight_ih_l0 shape is (4*hidden_dim, embedding_dim)
-                    hidden_dim = state_dict['lstm.weight_ih_l0'].shape[0] // 4
-                else:
-                    hidden_dim = checkpoint.get('hidden_dim', 256)
-                
-                num_layers = checkpoint.get('num_layers', 2)
-                dropout = checkpoint.get('dropout', 0.3)
-                
-                model = LSTMSentimentModel(
-                    vocab_size=vocab_size,
-                    embedding_dim=embedding_dim,
-                    hidden_dim=hidden_dim,
-                    num_layers=num_layers,
-                    dropout=dropout
-                )
-                
-                # Load state dict, handling architecture mismatches
-                try:
-                    model.load_state_dict(state_dict, strict=False)
-                except Exception as load_err:
-                    print(f"Warning loading LSTM state dict: {load_err}")
-                    # Try loading only matching keys
-                    model_dict = model.state_dict()
-                    pretrained_dict = {k: v for k, v in state_dict.items() if k in model_dict and model_dict[k].shape == v.shape}
-                    model_dict.update(pretrained_dict)
-                    model.load_state_dict(model_dict)
-                
-                model.to(self.device)
-                model.eval()
-                
-                self.models['lstm'] = {
-                    'model': model,
-                    'vocab': vocab
-                }
-                print("✓ LSTM loaded")
-            else:
-                print(f"⚠ LSTM model files not found")
-        except Exception as e:
-            print(f"Error loading LSTM: {e}")
+            from config import AppConfig
+        except ImportError:
+            import importlib.util
+            config_path = Path(__file__).parent.parent / 'config.py'
+            spec = importlib.util.spec_from_file_location("config", config_path)
+            config_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(config_module)
+            AppConfig = config_module.AppConfig
         
-        # Load Logistic Regression
-        try:
-            lr_path = AppConfig.LOGISTIC_MODEL_PATH
-            if lr_path.exists():
-                import joblib
-                # Try joblib first (often used for sklearn models)
-                try:
-                    self.models['logistic'] = joblib.load(lr_path)
-                    print("✓ Logistic Regression loaded (joblib)")
-                except Exception as joblib_err:
-                    print(f"⚠ Joblib failed: {joblib_err}")
-                    # Try pickle as fallback
+        if model_name == 'distilbert':
+            try:
+                from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
+                model_path = AppConfig.DISTILBERT_MODEL_PATH
+                if model_path.exists():
+                    # For web deployment, try to load with memory optimization
                     try:
-                        with open(lr_path, 'rb') as f:
-                            self.models['logistic'] = pickle.load(f)
-                        print("✓ Logistic Regression loaded (pickle)")
-                    except Exception as pickle_err:
-                        print(f"⚠ Pickle also failed: {pickle_err}")
-            else:
-                print(f"⚠ Logistic Regression model not found at {lr_path}")
-        except Exception as e:
-            print(f"Error loading Logistic Regression: {e}")
+                        model = DistilBertForSequenceClassification.from_pretrained(
+                            str(model_path), 
+                            low_cpu_mem_usage=True
+                        ).to(self.device)
+                        tokenizer = DistilBertTokenizer.from_pretrained(str(model_path))
+                        
+                        self.models['distilbert'] = {
+                            'model': model,
+                            'tokenizer': tokenizer
+                        }
+                        self.models['distilbert']['model'].eval()
+                        print("✓ DistilBERT loaded")
+                    except Exception as mem_error:
+                        if "header too large" in str(mem_error) or "deserializing header" in str(mem_error):
+                            print(f"⚠ DistilBERT skipped due to memory constraints in web environment: {mem_error}")
+                            # Don't raise, just skip this model
+                            return
+                        else:
+                            raise mem_error
+                else:
+                    print(f"⚠ DistilBERT model path does not exist: {model_path}")
+            except Exception as e:
+                print(f"Error loading DistilBERT: {e}")
+                # For web deployment, don't fail if DistilBERT can't load
+                if "web" in str(e).lower() or "memory" in str(e).lower() or "header" in str(e).lower():
+                    print("⚠ Skipping DistilBERT due to environment constraints")
+                    return
+                raise
         
-        # Load Random Forest
-        try:
-            rf_path = AppConfig.RANDOM_FOREST_MODEL_PATH
-            if rf_path.exists():
-                import joblib
-                # Try joblib first (often used for sklearn models)
-                try:
-                    self.models['random_forest'] = joblib.load(rf_path)
-                    print("✓ Random Forest loaded (joblib)")
-                except Exception as joblib_err:
-                    print(f"⚠ Joblib failed: {joblib_err}")
-                    # Try pickle as fallback
+        elif model_name == 'lstm':
+            try:
+                lstm_path = AppConfig.LSTM_MODEL_PATH
+                vocab_path = AppConfig.VOCAB_LSTM_PATH
+                
+                if lstm_path.exists() and vocab_path.exists():
+                    # Load vocabulary
+                    with open(vocab_path, 'rb') as f:
+                        vocab = pickle.load(f)
+                    
+                    # Load model with weights_only=False for PyTorch 2.6 compatibility
+                    checkpoint = torch.load(lstm_path, map_location=self.device, weights_only=False)
+                    
+                    # Initialize model with correct parameters from checkpoint
+                    vocab_size = len(vocab) if hasattr(vocab, '__len__') else checkpoint.get('vocab_size', 10000)
+                    
+                    # Check if checkpoint has the actual dimensions stored
+                    state_dict = checkpoint.get('model_state_dict', checkpoint)
+                    
+                    # Infer dimensions from state_dict if available
+                    if 'embedding.weight' in state_dict:
+                        vocab_size, embedding_dim = state_dict['embedding.weight'].shape
+                    else:
+                        embedding_dim = checkpoint.get('embedding_dim', 128)
+                    
+                    if 'lstm.weight_ih_l0' in state_dict:
+                        # For bidirectional LSTM: weight_ih_l0 shape is (4*hidden_dim, embedding_dim)
+                        hidden_dim = state_dict['lstm.weight_ih_l0'].shape[0] // 4
+                    else:
+                        hidden_dim = checkpoint.get('hidden_dim', 256)
+                    
+                    num_layers = checkpoint.get('num_layers', 2)
+                    dropout = checkpoint.get('dropout', 0.3)
+                    
+                    model = LSTMSentimentModel(
+                        vocab_size=vocab_size,
+                        embedding_dim=embedding_dim,
+                        hidden_dim=hidden_dim,
+                        num_layers=num_layers,
+                        dropout=dropout
+                    )
+                    
+                    # Load state dict, handling architecture mismatches
                     try:
-                        with open(rf_path, 'rb') as f:
-                            self.models['random_forest'] = pickle.load(f)
-                        print("✓ Random Forest loaded (pickle)")
-                    except Exception as pickle_err:
-                        print(f"⚠ Pickle also failed: {pickle_err}")
-            else:
-                print(f"⚠ Random Forest model not found at {rf_path}")
-        except Exception as e:
-            print(f"Error loading Random Forest: {e}")
+                        model.load_state_dict(state_dict, strict=False)
+                    except Exception as load_err:
+                        print(f"Warning loading LSTM state dict: {load_err}")
+                        # Try loading only matching keys
+                        model_dict = model.state_dict()
+                        pretrained_dict = {k: v for k, v in state_dict.items() if k in model_dict and model_dict[k].shape == v.shape}
+                        model_dict.update(pretrained_dict)
+                        model.load_state_dict(model_dict)
+                    
+                    model.to(self.device)
+                    model.eval()
+                    
+                    self.models['lstm'] = {
+                        'model': model,
+                        'vocab': vocab
+                    }
+                    print("✓ LSTM loaded")
+                else:
+                    print(f"⚠ LSTM model files not found")
+            except Exception as e:
+                print(f"Error loading LSTM: {e}")
+                raise
+        
+        elif model_name == 'logistic':
+            try:
+                lr_path = AppConfig.LOGISTIC_MODEL_PATH
+                if lr_path.exists():
+                    import joblib
+                    try:
+                        self.models['logistic'] = joblib.load(lr_path)
+                        print("✓ Logistic Regression loaded")
+                    except Exception as joblib_err:
+                        print(f"⚠ Joblib failed: {joblib_err}")
+                        # Try pickle as fallback
+                        try:
+                            with open(lr_path, 'rb') as f:
+                                self.models['logistic'] = pickle.load(f)
+                            print("✓ Logistic Regression loaded (pickle)")
+                        except Exception as pickle_err:
+                            print(f"⚠ Pickle also failed: {pickle_err}")
+                            raise
+                else:
+                    print(f"⚠ Logistic Regression model not found at {lr_path}")
+            except Exception as e:
+                print(f"Error loading Logistic Regression: {e}")
+                raise
+        
+        elif model_name == 'random_forest':
+            try:
+                rf_path = AppConfig.RANDOM_FOREST_MODEL_PATH
+                if rf_path.exists():
+                    import joblib
+                    try:
+                        self.models['random_forest'] = joblib.load(rf_path)
+                        print("✓ Random Forest loaded")
+                    except Exception as joblib_err:
+                        print(f"⚠ Joblib failed: {joblib_err}")
+                        # Try pickle as fallback
+                        try:
+                            with open(rf_path, 'rb') as f:
+                                self.models['random_forest'] = pickle.load(f)
+                            print("✓ Random Forest loaded (pickle)")
+                        except Exception as pickle_err:
+                            print(f"⚠ Pickle also failed: {pickle_err}")
+                            raise
+                else:
+                    print(f"⚠ Random Forest model not found at {rf_path}")
+            except Exception as e:
+                print(f"Error loading Random Forest: {e}")
+                raise
     
     def _preprocess_text_lstm(self, text, vocab, max_length=200):
         """Preprocess text for LSTM model"""
@@ -238,30 +274,42 @@ class ModelManager:
             }
         
         try:
-            if model_name == 'distilbert' and 'distilbert' in self.models:
+            # Load model if not already loaded
+            if model_name not in self.models:
+                try:
+                    self._load_model(model_name)
+                except Exception as load_error:
+                    print(f"Failed to load model {model_name}: {load_error}")
+                    # Try fallback models
+                    for fallback_model in ['distilbert', 'lstm', 'logistic', 'random_forest']:
+                        if fallback_model != model_name and fallback_model in self.models:
+                            print(f"Using fallback model {fallback_model}")
+                            return self.predict_sentiment(text, fallback_model)
+                    return {
+                        'label': 'Neutral',
+                        'score': 0.5,
+                        'time': time.time() - start_time,
+                        'error': f'Failed to load model {model_name}: {load_error}'
+                    }
+            
+            if model_name == 'distilbert':
                 return self._predict_distilbert(text, start_time)
             
-            elif model_name == 'lstm' and 'lstm' in self.models:
+            elif model_name == 'lstm':
                 return self._predict_lstm(text, start_time)
             
-            elif model_name == 'logistic' and 'logistic' in self.models:
+            elif model_name == 'logistic':
                 return self._predict_sklearn(text, 'logistic', start_time)
             
-            elif model_name == 'random_forest' and 'random_forest' in self.models:
+            elif model_name == 'random_forest':
                 return self._predict_sklearn(text, 'random_forest', start_time)
             
             else:
-                # Fallback: try any available model
-                for available_model in ['distilbert', 'lstm', 'logistic', 'random_forest']:
-                    if available_model in self.models:
-                        print(f"Model {model_name} not available, using {available_model}")
-                        return self.predict_sentiment(text, available_model)
-                
                 return {
                     'label': 'Neutral',
                     'score': 0.5,
                     'time': time.time() - start_time,
-                    'error': f'Model {model_name} not loaded'
+                    'error': f'Unknown model {model_name}'
                 }
         
         except Exception as e:
@@ -425,8 +473,34 @@ class ModelManager:
         return False
     
     def get_available_models(self):
-        """Return list of loaded models"""
-        return list(self.models.keys())
+        """Return list of models that can be loaded (files exist)"""
+        available = []
+        
+        try:
+            from config import AppConfig
+            
+            # Check DistilBERT
+            if AppConfig.DISTILBERT_MODEL_PATH.exists():
+                available.append('distilbert')
+            
+            # Check LSTM
+            if AppConfig.LSTM_MODEL_PATH.exists() and AppConfig.VOCAB_LSTM_PATH.exists():
+                available.append('lstm')
+            
+            # Check Logistic Regression
+            if AppConfig.LOGISTIC_MODEL_PATH.exists():
+                available.append('logistic')
+            
+            # Check Random Forest
+            if AppConfig.RANDOM_FOREST_MODEL_PATH.exists():
+                available.append('random_forest')
+                
+        except Exception as e:
+            print(f"Error checking available models: {e}")
+            # Fallback: return loaded models
+            available = list(self.models.keys())
+        
+        return available
     
     def get_model_info(self):
         """Return information about all models"""
