@@ -266,7 +266,7 @@ with st.sidebar:
     st.markdown('Primary Model')
     selected_model = st.selectbox(
         "",
-        ["DistilBERT (Recommended)", "LSTM Deep Learning", "Logistic Regression", "Random Forest"],
+        ["DistilBERT", "LSTM Deep Learning", "Logistic Regression", "Random Forest"],
         help="Choose the sentiment analysis model",
         label_visibility="collapsed"
     )
