@@ -32,15 +32,44 @@ st.set_page_config(
 # Custom CSS for professional appearance
 st.markdown("""
 <style>
+    /* Force a consistent black app background and white foreground text */
+    html, body, .stApp, .reportview-container, .main, div[data-testid="stAppViewContainer"] {
+        background-color: #000000 !important;
+        color: #ffffff !important;
+    }
+
+    /* Force the top toolbar / header to be black */
+    header, div[data-testid="stToolbar"], div[data-testid="stAppTopbar"], div[data-testid="stAppHeader"], div[role="banner"] {
+        background-color: #000000 !important;
+        color: #ffffff !important;
+        box-shadow: none !important;
+        border-bottom: 1px solid rgba(255,255,255,0.04) !important;
+    }
+    /* Invert simple SVG icons inside the toolbar so they appear on dark background */
+    header svg, header img, div[data-testid="stToolbar"] svg, div[data-testid="stToolbar"] img {
+        filter: invert(100%) !important;
+    }
+
+    /* Force the left sidebar to be a light grey regardless of user/browser theme */
+    section[data-testid="stSidebar"], .stSidebar, div[role="navigation"] {
+        background-color: #6D8196 !important; /* gray-100 */
+        color: #111827 !important; /* gray-900 for readable text */
+    }
+    /* Ensure all elements inside the sidebar inherit the forced text color */
+    section[data-testid="stSidebar"] * {
+        color: #111827 !important;
+    }
+
+    /* Keep the rest of the custom styles (app content) */
     .main-header {
         font-size: 2.5rem;
         font-weight: 700;
-        color: #1f2937;
+        color: #ffffff; /* adjusted for dark background */
         margin-bottom: 0.5rem;
     }
     .sub-header {
         font-size: 1.2rem;
-        color: #6b7280;
+        color: #d1d5db; /* lighter gray for subheader */
         margin-bottom: 2rem;
     }
     .metric-card {
@@ -51,25 +80,26 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     .movie-card {
-        border: 1px solid #e5e7eb;
+        border: 1px solid #374151; /* darker border for dark bg */
         border-radius: 0.5rem;
         padding: 1rem;
         margin: 0.5rem 0;
         transition: box-shadow 0.3s;
+        background: rgba(255,255,255,0.02);
     }
     .movie-card:hover {
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        box-shadow: 0 4px 12px rgba(255,255,255,0.03);
     }
     .mini-movie-card {
-        border: 1px solid #e5e7eb;
+        border: 1px solid #374151;
         border-radius: 0.5rem;
         padding: 0.5rem;
         margin: 0.3rem 0;
-        background: white;
+        background: rgba(255,255,255,0.02);
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     .mini-movie-card:hover {
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 8px rgba(255,255,255,0.02);
     }
     .stButton>button {
         width: 100%;
@@ -89,8 +119,66 @@ st.markdown("""
         color: #fbbf24;
         letter-spacing: 0.2rem;
     }
+
+    /* Make Streamlit widgets visually coherent on dark background */
+    .stDataFrame, .stMetric, .stMarkdown, .stCaption {
+        color: #ffffff !important;
+    }
+    /* Ensure metric values and labels are white even inside the sidebar */
+    .stMetric, .stMetric * {
+        color: #ffffff !important;
+    }
+    section[data-testid="stSidebar"] .stMetric, section[data-testid="stSidebar"] .stMetric * {
+        color: #ffffff !important;
+    }
+
+    /* Quick Start Guide custom block */
+    .quick-start-info {
+        background-color: rgba(84,99,115,0.4) !important; /* #546373 at 40% */
+        color: #ffffff !important;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid rgba(84,99,115,0.3) !important;
+    }
+    .quick-start-info * {
+        color: inherit !important;
+    }
+
+    /* White color for subheaders/titles */
+    h3, .stSubheader {
+        color: #ffffff !important;
+    }
+
+    /* Purple color for text selection */
+    ::selection {
+        background-color: #2D68C4 !important; /* purple-500 */
+        color: #ffffff !important;
+    }
+    ::-moz-selection {
+        background-color: #2D68C4 !important; /* purple-500 */
+        color: #ffffff !important;
+    }
+
 </style>
 """, unsafe_allow_html=True)
+
+
+def _style_plotly(fig):
+    """Apply dark-theme friendly styling: transparent background and high-contrast text."""
+    try:
+        fig.update_layout(
+            paper_bgcolor='rgba(0,0,0,0) ',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='#ffffff'),
+            title=dict(font=dict(color='#ffffff')),
+            legend=dict(font=dict(color='#ffffff')),
+        )
+        # Axes
+        fig.update_xaxes(showgrid=False, zeroline=False, tickfont=dict(color='#ffffff'), title_font=dict(color='#ffffff'))
+        fig.update_yaxes(showgrid=False, zeroline=False, tickfont=dict(color='#ffffff'), title_font=dict(color='#ffffff'))
+    except Exception:
+        pass
+    return fig
 
 # Initialize session state
 if 'db_manager' not in st.session_state:
@@ -107,16 +195,38 @@ if 'session_id' not in st.session_state:
     import uuid
     st.session_state.session_id = str(uuid.uuid4())
 
+# Navigation handling with query params
+page_map = {
+    "home": "Home",
+    "catalog": "Movie Catalog",
+    "analytics": "Live Analytics",
+    "comparison": "Model Comparison",
+    "architecture": "Model Architecture"
+}
+
+# Reverse mapping for query params
+reverse_page_map = {v: k for k, v in page_map.items()}
+
+# Get page from query params or default to Home
+query_page = st.query_params.get("page", "home")
+default_index = list(page_map.values()).index(page_map.get(query_page, "Home"))
+
 # Sidebar navigation
 with st.sidebar:
     st.image("https://freesvg.org/img/Movie-Projector-Icon.png", width=80)
     st.title(" MovieLover")
-    
+
     page = st.radio(
         "Select View",
         ["Home", "Movie Catalog", "Live Analytics", "Model Comparison", "Model Architecture"],
-        label_visibility="collapsed"
+        label_visibility="collapsed",
+        index=default_index
     )
+
+    # Update query params when radio changes
+    current_query_page = reverse_page_map.get(page, "home")
+    if current_query_page != query_page:
+        st.query_params["page"] = current_query_page
     
     st.divider()
     
@@ -124,8 +234,8 @@ with st.sidebar:
     st.subheader("Model Configuration")
     selected_model = st.selectbox(
         "Primary Model",
-        ["DistilBERT (Recommended)", "LSTM Deep Learning", "Logistic Regression", "Random Forest"],
-        help="Choose the sentiment analysis model"
+        ["LSTM Deep Learning", "Logistic Regression", "Random Forest", "DistilBERT (High Memory)"],
+        help="Choose the sentiment analysis model. DistilBERT loads on-demand to save memory."
     )
     
     st.divider()
@@ -133,7 +243,7 @@ with st.sidebar:
     # Connection status
     if st.session_state.db_manager.is_connected():
         st.success("Database Connected")
-        st.metric("Total Movies", st.session_state.db_manager.get_movie_count())
+
     else:
         st.error("Database Disconnected")
 
@@ -141,12 +251,12 @@ with st.sidebar:
         st.image(
             "https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/MongoDB_Logo.svg/512px-MongoDB_Logo.svg.png",
             caption="MongoDB Atlas",
-            use_container_width=True
+            width="stretch"
         )
         st.image(
             "https://www.northware.mx/wp-content/uploads/2022/09/northware-microsoft-azure-logo.png",
             caption="Microsoft Azure",
-            use_container_width=True
+            width="stretch"
         )        
     except Exception as e:
         st.caption(f"Logos no disponibles ({e})")
@@ -174,9 +284,7 @@ if page == "Home":
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.markdown('<p class="main-header"> MovieLover</p>', unsafe_allow_html=True)
-        st.markdown('<p class="sub-header">AI-Powered Movie Sentiment Analysis & Reviews</p>', unsafe_allow_html=True)
-        
+      
         st.markdown("""
         ### Welcome to MovieLover!
         
@@ -191,25 +299,31 @@ if page == "Home":
         """)
         
         if st.button("Start Exploring Movies", type="primary"):
-            st.session_state.current_page = 'catalog'
+            st.query_params["page"] = "catalog"
             st.rerun()
     
     with col2:
-        st.info("""
-        **Quick Start Guide**
-        
-        1. Browse the Movie Catalog
-        2. Select a movie that interests you
-        3. Write your review
-        4. See instant sentiment analysis
-        5. Explore aggregated insights
-        """)
+        st.markdown(
+            """
+            <div class="quick-start-info">
+                <strong>Quick Start Guide</strong>
+                <ol style="margin-top:0.5rem; padding-left:1.2rem;">
+                    <li>Browse the Movie Catalog</li>
+                    <li>Select a movie that interests you</li>
+                    <li>Write your review</li>
+                    <li>See instant sentiment analysis</li>
+                    <li>Explore aggregated insights</li>
+                </ol>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         try:
             import qrcode
             from io import BytesIO
             st.markdown("### Acceso Rápido (QR)")
-            app_url = st.session_state.get('app_base_url', 'http://localhost:8501')
+            app_url = st.session_state.get('app_base_url', 'https://bigdata-proyecto2-movielovers.streamlit.app/')
             qr = qrcode.QRCode(box_size=4, border=2)
             qr.add_data(app_url)
             qr.make(fit=True)
@@ -291,9 +405,7 @@ if page == "Home":
         )
 
 elif page == "Movie Catalog":
-    st.markdown('<p class="main-header">MovieLover Catalog</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Discover and review movies from our extensive collection</p>', unsafe_allow_html=True)
-    
+
     # Search and filter section
     col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
     
@@ -369,7 +481,7 @@ elif page == "Movie Catalog":
                     # Movie poster
                     year = movie.get('year')
                     poster_url = st.session_state.movie_catalog.get_poster_url(movie['title'], year)
-                    st.image(poster_url, use_container_width=True)
+                    st.image(poster_url, width="stretch")
                     
                     # Movie details
                     st.markdown(f"**{movie['title'][:30]}{'...' if len(movie['title']) > 30 else ''}**")
@@ -419,7 +531,7 @@ elif page == "Movie Catalog":
         
         with col2:
             year = movie.get('year')
-            st.image(st.session_state.movie_catalog.get_poster_url(movie['title'], year), use_container_width=True)
+            st.image(st.session_state.movie_catalog.get_poster_url(movie['title'], year), width="stretch")
             st.caption(f"**Genres:** {movie.get('genres', 'N/A')}")
             st.caption(f"**Year:** {movie.get('year', 'N/A')}")
         
@@ -469,7 +581,7 @@ elif page == "Movie Catalog":
             
             col_btn1, col_btn2 = st.columns(2)
             with col_btn1:
-                if st.button("✅ Submit Review", type="primary", use_container_width=True):
+                if st.button("✅ Submit", type="primary", width="stretch"):
                     if user_review.strip():
                         with st.spinner("Analyzing sentiment..."):
                             # Language detection & optional translation
@@ -477,7 +589,14 @@ elif page == "Movie Catalog":
                             translated_text, translated_flag, translation_model = translate_to_english(user_review, detected_lang)
 
                             # Get sentiment prediction (always on English text)
-                            model_name = selected_model.split(" ")[0].lower()
+                            # Map display names to internal model names
+                            model_name_map = {
+                                "LSTM Deep Learning": "lstm",
+                                "Logistic Regression": "logistic", 
+                                "Random Forest": "random_forest",
+                                "DistilBERT (High Memory)": "distilbert"
+                            }
+                            model_name = model_name_map.get(selected_model, "lstm")  # Default to LSTM
                             sentiment_result = st.session_state.model_manager.predict_sentiment(
                                 translated_text,
                                 model_name
@@ -511,7 +630,7 @@ elif page == "Movie Catalog":
                         st.error("⚠️ Please write a review before submitting")
             
             with col_btn2:
-                if st.button("❌ Cancel", use_container_width=True):
+                if st.button("❌ Cancel", width="stretch"):
                     st.session_state.show_review_modal = False
                     st.rerun()
     
@@ -523,12 +642,8 @@ elif page == "Live Analytics":
     col_title, col_refresh = st.columns([4, 1])
     
     with col_title:
-        st.markdown('<p class="main-header">📊 Live Analytics Dashboard</p>', unsafe_allow_html=True)
-        st.markdown('<p class="sub-header">Real-time insights from audience feedback</p>', unsafe_allow_html=True)
-    
-    with col_refresh:
         st.write("")  # Spacing
-        if st.button("🔄 Refresh Data", help="Load latest reviews from all sessions"):
+        if st.button("🔄 Refresh Data", help="Load latest reviews from all sessions", type="primary"):
             st.rerun()
     
     # Load reviews from database (shared across all sessions)
@@ -649,12 +764,39 @@ elif page == "Live Analytics":
         
         # Combine into top_5
         top_5_movies = pd.concat([top_2_recommended, neutral_movie, bottom_2_not_recommended])
-        
+
+        # Enrich top_5_movies with additional movie information (year, etc.)
+        enriched_top_5 = []
+        for _, row in top_5_movies.iterrows():
+            movie_id = row['movie_id']
+            # Get full movie details from database
+            try:
+                movie_details = st.session_state.db_manager.get_movie_by_id(movie_id)
+                if movie_details:
+                    enriched_row = row.copy()
+                    enriched_row['year'] = movie_details.get('year', 'N/A')
+                    enriched_row['genres'] = movie_details.get('genres', 'N/A')
+                    enriched_top_5.append(enriched_row)
+                else:
+                    # Fallback if movie not found
+                    enriched_row = row.copy()
+                    enriched_row['year'] = 'N/A'
+                    enriched_row['genres'] = 'N/A'
+                    enriched_top_5.append(enriched_row)
+            except Exception:
+                # Fallback on error
+                enriched_row = row.copy()
+                enriched_row['year'] = 'N/A'
+                enriched_row['genres'] = 'N/A'
+                enriched_top_5.append(enriched_row)
+
+        top_5_movies = pd.DataFrame(enriched_top_5)
+
         # Store in session state for sidebar display
         st.session_state.top_5_movies = top_5_movies
         
         # Display Top 5 in a horizontal row
-        st.subheader("🎬 Top 5 Movies by Sentiment Analysis")
+        st.subheader("Top 5 Movies by Sentiment Analysis")
         cols = st.columns(5)
         
         position = 1
@@ -678,9 +820,14 @@ elif page == "Live Analytics":
                 label = "Not Recommended"
             
             with col:
+                # Movie poster
+                year = row.get('year', 'N/A')
+                poster_url = st.session_state.movie_catalog.get_poster_url(movie_title, year if year != 'N/A' else None)
+                st.image(poster_url, width="stretch", use_container_width=True)
+
                 st.markdown(f"**#{position} {emoji}**")
-                st.markdown(f"**{movie_title[:20]}{'...' if len(movie_title) > 20 else ''}**")
-                
+                st.markdown(f"**{movie_title[:18]}{'...' if len(movie_title) > 18 else ''}**")
+
                 # Star rating
                 full_stars = int(avg_rating)
                 half_star = 1 if (avg_rating - full_stars) >= 0.5 else 0
@@ -688,50 +835,13 @@ elif page == "Live Analytics":
                 stars = '⭐' * full_stars + '✨' * half_star + '☆' * empty_stars
                 st.caption(f"{stars}")
                 st.caption(f"{avg_rating:.1f}/5")
-                
+
                 # Sentiment percentage with color
                 sentiment_pct = sentiment_score * 100
                 st.markdown(f":{sentiment_color}[{sentiment_pct:.0f}%]")
                 st.caption(f"{label}")
             
             position += 1
-        
-        st.divider()
-        
-        # Visualizations
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Rating distribution
-            st.plotly_chart(
-                create_rating_distribution(reviews_df),
-                use_container_width=True
-            )
-        
-        with col2:
-            # Timeline chart
-            st.plotly_chart(
-                create_timeline_chart(reviews_df),
-                use_container_width=True
-            )
-            
-            # Top reviewed movies
-            top_movies = reviews_df.groupby('movie_title').agg({
-                'rating': 'mean',
-                'sentiment_score': 'mean',
-                'review_text': 'count'
-            }).sort_values('review_text', ascending=False).head(5)
-            
-            fig = px.bar(
-                top_movies.reset_index(),
-                x='review_text',
-                y='movie_title',
-                orientation='h',
-                title="Most Reviewed Movies",
-                labels={'review_text': 'Number of Reviews', 'movie_title': 'Movie'}
-            )
-            fig.update_layout(height=300)
-            st.plotly_chart(fig, use_container_width=True)
         
         st.divider()
         
@@ -743,19 +853,71 @@ elif page == "Live Analytics":
         display_df['sentiment_score'] = display_df['sentiment_score'].apply(lambda x: f"{x:.2%}")
         display_df.columns = ['Movie', 'Rating', 'Sentiment', 'Confidence', 'Review']
         
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        st.dataframe(display_df, width='stretch', hide_index=True)
+        
+        st.divider()
+        
+        
+        # Visualizations
+        col1, col2 = st.columns(2)
+        
+        with col1:
+                # Rating distribution
+                fig = create_rating_distribution(reviews_df)
+                fig = _style_plotly(fig)
+                st.plotly_chart(fig, width='stretch')
+        
+        with col2:
+            
+            # Top reviewed movies
+            top_movies = reviews_df.groupby('movie_title').agg({
+                'rating': 'mean',
+                'sentiment_score': 'mean',
+                'review_text': 'count'
+                }).sort_values('review_text', ascending=False).head(5)
+                
+            fig = px.bar(
+                top_movies.reset_index(),
+                x='review_text',
+                y='movie_title',
+                orientation='h',
+                title="Most Reviewed Movies",
+                labels={'review_text': 'Number of Reviews', 'movie_title': 'Movie'}
+            )
+            fig.update_layout(height=300)
+            fig = _style_plotly(fig)
+            st.plotly_chart(fig, width='stretch')
+
+        st.divider()
+
+            # Timeline chart
+        fig = create_timeline_chart(reviews_df)
+        fig = _style_plotly(fig)
+        st.plotly_chart(fig, width='stretch')      
+ 
 
 elif page == "Model Comparison":
-    st.markdown('<p class="main-header"> MovieLover Model Comparison</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Compare multiple AI models side-by-side</p>', unsafe_allow_html=True)
-    
     # Model comparison interface
     st.subheader("Test Your Review Across Models")
-    
+
+    # Custom label with white color
+    st.markdown('<p style="color: #ffffff; font-weight: 250; margin-bottom: 0.01rem;">Enter a movie review to analyze (any language)</p>', unsafe_allow_html=True)
+
+    # Custom CSS for light gray text area background
+    st.markdown("""
+    <style>
+    div[data-testid="stTextArea"] textarea {
+        background-color: #91C6FF !important;
+        color: #000000 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     test_review = st.text_area(
-        "Enter a movie review to analyze (any language)",
+        "",  # Remove the label since we added it above
         placeholder="Type or paste a movie review here...",
-        height=150
+        height=150,
+        label_visibility="collapsed"  # Hide the default label
     )
     
     col1, col2 = st.columns([1, 4])
@@ -841,10 +1003,9 @@ elif page == "Model Comparison":
             
             with col2:
                 # Comparison chart
-                st.plotly_chart(
-                    create_model_comparison_chart(results_df),
-                    use_container_width=True
-                )
+                fig = create_model_comparison_chart(results_df)
+                fig = _style_plotly(fig)
+                st.plotly_chart(fig, width='stretch')
                 
                 # Performance metrics
                 st.subheader("Model Performance Summary")
@@ -898,6 +1059,7 @@ elif page == "Model Comparison":
             color_continuous_scale='Viridis'
         )
         fig.update_layout(showlegend=False)
+        fig = _style_plotly(fig)
         st.plotly_chart(fig, width='stretch')
     
     with col2:
@@ -912,12 +1074,10 @@ elif page == "Model Comparison":
             labels={'Training Time': 'Training Time (min)', 'Parameter Count': 'Parameters (approx)'}
         )
         fig.update_traces(textposition='top center')
+        fig = _style_plotly(fig)
         st.plotly_chart(fig, width='stretch')
 
 elif page == "Model Architecture":
-    st.markdown('<p class="main-header"> Model Architecture & Design</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Deep Learning Pipeline - From Data to Predictions</p>', unsafe_allow_html=True)
-    
     # Check if diagram files exist (robust path resolution)
     models_dir = Path(__file__).resolve().parent.parent / "api" / "models" / "diagrams"
     if not models_dir.exists():
@@ -929,11 +1089,50 @@ elif page == "Model Architecture":
             st.info("Run `python generate_model_diagrams.py` to create the architecture diagrams.")
             st.stop()
     else:
+        # Custom CSS for model architecture tabs
+        st.markdown("""
+        <style>
+        /* Default tab color - white */
+        [data-testid="stTab"] {
+            color: #ffffff !important;
+            background-color: transparent !important;
+        }
+        
+        /* Tab hover color - light blue */
+        [data-testid="stTab"]:hover {
+            color: #60a5fa !important;
+            background-color: rgba(96, 165, 250, 0.0) !important;
+        }
+        
+        /* Active/selected tab color - purple */
+        [data-testid="stTab"][aria-selected="true"] {
+            color: #60a5fa !important;
+            background-color: rgba(168, 85, 247, 0.0) !important;
+            border-bottom: 2px solid #60a5fa !important;
+        }
+        
+        /* Default expander color - white */
+        [data-testid="stExpander"] {
+            color: #ADCCED !important;
+        }
+        
+        /* Expander hover color - light blue */
+        [data-testid="stExpander"]:hover {
+            color: #ADCCED !important;
+        }
+        
+        /* Expander expanded/selected color - purple */
+        [data-testid="stExpander"][aria-expanded="true"] {
+            color: #000000 !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
         # Model selection tabs
         model_tabs = st.tabs(["📊 Overview", "1️⃣ Logistic Regression", "2️⃣ Random Forest", "3️⃣ LSTM", "4️⃣ DistilBERT"])
         
         with model_tabs[0]:
-            st.markdown("### 🏆 Model Comparison Summary")
+            st.markdown("### Model Comparison Summary")
             st.markdown("""
             **Training Dataset:** 50,000 IMDB Movie Reviews  
             **Hardware:** NVIDIA A100 GPU (Google Colab)  
@@ -942,7 +1141,7 @@ elif page == "Model Architecture":
             
             comparison_img = models_dir / "model_comparison_summary.png"
             if comparison_img.exists():
-                st.image(str(comparison_img), use_container_width=True)
+                st.image(str(comparison_img), width="stretch")
             else:
                 st.warning(f"Comparison image not found: {comparison_img}")
             
@@ -981,7 +1180,7 @@ elif page == "Model Architecture":
             
             lr_img = models_dir / "model1_logistic_regression.png"
             if lr_img.exists():
-                st.image(str(lr_img), use_container_width=True)
+                st.image(str(lr_img), width="stretch")
             
             st.markdown("---")
             col1, col2, col3 = st.columns(3)
@@ -1025,7 +1224,7 @@ elif page == "Model Architecture":
             
             rf_img = models_dir / "model2_random_forest.png"
             if rf_img.exists():
-                st.image(str(rf_img), use_container_width=True)
+                st.image(str(rf_img), width="stretch")
             
             st.markdown("---")
             col1, col2, col3 = st.columns(3)
@@ -1069,7 +1268,7 @@ elif page == "Model Architecture":
             
             lstm_img = models_dir / "model3_lstm.png"
             if lstm_img.exists():
-                st.image(str(lstm_img), use_container_width=True)
+                st.image(str(lstm_img), width="stretch")
             
             st.markdown("---")
             col1, col2, col3, col4 = st.columns(4)
@@ -1124,7 +1323,7 @@ elif page == "Model Architecture":
             
             bert_img = models_dir / "model4_distilbert.png"
             if bert_img.exists():
-                st.image(str(bert_img), use_container_width=True)
+                st.image(str(bert_img), width="stretch")
             
             st.markdown("---")
             col1, col2, col3, col4 = st.columns(4)
