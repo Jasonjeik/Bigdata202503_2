@@ -703,10 +703,18 @@ elif page == "Movie Catalog":
                             }
 
                             # Save directly to database (shared across all sessions)
-                            st.session_state.db_manager.save_review(review_data)
-
-                            lang_note = f" (translated from {detected_lang})" if translated_flag else ""
-                            st.success(f"✅ Review submitted{lang_note}! Sentiment: {sentiment_result['label']} ({sentiment_result['score']:.2%})")
+                            saved_id = st.session_state.db_manager.save_review(review_data)
+                            
+                            if saved_id:
+                                lang_note = f" (translated from {detected_lang})" if translated_flag else ""
+                                st.success(f"✅ Review submitted{lang_note}! Sentiment: {sentiment_result['label']} ({sentiment_result['score']:.2%})")
+                                st.info("💾 Saved to shared database - visible to all participants after refresh")
+                            else:
+                                st.warning("⚠️ Review analyzed but may not have saved to database. Check connection.")
+                            
+                            # Small delay to ensure DB write completes before closing
+                            import time
+                            time.sleep(0.5)
                             st.session_state.show_review_modal = False
                             st.rerun()
                     else:

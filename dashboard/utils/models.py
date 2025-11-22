@@ -373,11 +373,14 @@ class ModelManager:
                 score = best_result['score']
                 
                 # Convert to our format
-                is_positive = 'POSITIVE' in label.upper() or 'LABEL_1' in label.upper()
+                # DistilBERT fine-tuned model: LABEL_1 or POSITIVE = Positive sentiment
+                # LABEL_0 or NEGATIVE = Negative sentiment
+                is_positive = ('POSITIVE' in label.upper() or 'LABEL_1' in label.upper() or 
+                              label.upper() == '1' or 'POS' in label.upper())
                 
                 # Get probabilities for both classes
-                pos_result = next((r for r in predictions if 'POSITIVE' in r['label'].upper() or 'LABEL_1' in r['label'].upper()), None)
-                neg_result = next((r for r in predictions if 'NEGATIVE' in r['label'].upper() or 'LABEL_0' in r['label'].upper()), None)
+                pos_result = next((r for r in predictions if 'POSITIVE' in r['label'].upper() or 'LABEL_1' in r['label'].upper() or '1' == r['label'].upper()), None)
+                neg_result = next((r for r in predictions if 'NEGATIVE' in r['label'].upper() or 'LABEL_0' in r['label'].upper() or '0' == r['label'].upper()), None)
                 
                 prob_positive = pos_result['score'] if pos_result else (score if is_positive else 1-score)
                 prob_negative = neg_result['score'] if neg_result else (1-score if is_positive else score)

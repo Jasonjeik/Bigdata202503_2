@@ -3,9 +3,18 @@ Application configuration and settings
 """
 import os
 from pathlib import Path
-import qrcode
-from io import BytesIO
-import base64
+
+# Optional imports for QR code generation
+try:
+    import qrcode
+    from io import BytesIO
+    import base64
+    QRCODE_AVAILABLE = True
+except ImportError:
+    QRCODE_AVAILABLE = False
+    qrcode = None
+    BytesIO = None
+    base64 = None
 
 class AppConfig:
     # Application settings
