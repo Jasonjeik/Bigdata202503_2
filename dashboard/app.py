@@ -749,37 +749,6 @@ elif page == "Live Analytics":
     if not all_reviews:
         st.info("No reviews collected yet. Visit the Movie Catalog to start collecting audience feedback.")
     else:
-        # Optional: repair any legacy Neutral(0.50) predictions created while models were unavailable
-        def _needs_recompute(row):
-            try:
-                return (row.get('sentiment_label') not in ['Positive', 'Negative']) or (abs(float(row.get('sentiment_score', 0.5)) - 0.5) < 1e-6)
-            except Exception:
-                return True
-
-        if any(_needs_recompute(r) for r in all_reviews):
-            if st.button("Recalcular sentimientos de reseñas neutrales (fix)", type="secondary"):
-                fixed = 0
-                for r in all_reviews:
-                    if _needs_recompute(r):
-                        # Prefer translated text if we have it; else original
-                        raw_text = r.get('original_text') or r.get('text') or r.get('translated_text') or ''
-                        if raw_text:
-                            # Detect & translate
-                            lang = detect_language(raw_text)
-                            en_text, was_translated, t_model = translate_to_english(raw_text, lang)
-                            # Predict with currently selected or default model
-                            primary = 'distilbert' if 'distilbert' in st.session_state.model_manager.get_available_models() else next(iter(st.session_state.model_manager.get_available_models()), 'distilbert')
-                            result = st.session_state.model_manager.predict_sentiment(en_text, primary)
-                            r['sentiment_label'] = result['label']
-                            r['sentiment_score'] = result['score']
-                            r['original_language'] = lang
-                            r['translated_text'] = en_text if was_translated else None
-                            r['translation_model'] = t_model
-                            r['was_translated'] = was_translated
-                            fixed += 1
-                st.success(f"Sentimientos recalculados para {fixed} reseñas.")
-                st.rerun()
-
         # Prepare dataframe from all reviews (database + session)
         reviews_df = pd.DataFrame(all_reviews)
         # Ensure a canonical review_text column exists for downstream visuals
