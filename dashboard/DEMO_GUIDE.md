@@ -17,8 +17,10 @@ Tu aplicación ahora está configurada para **compartir reseñas entre todas las
 5. Haz clic en **"Unlock Admin"**
 
 #### Funcionalidades de Admin:
-- **🗑️ Reset All Reviews**: Limpia todas las reseñas de la base de datos
+- **🗑️ Reset All Reviews**: Limpia todas las reseñas de MongoDB Y del archivo de backup local
 - **🔒 Lock Admin**: Cierra el modo administrador
+
+**Nota:** El botón Reset elimina TODAS las reseñas de ambas fuentes de almacenamiento (MongoDB Atlas + archivo local de backup), garantizando un inicio limpio para cada demostración.
 
 ---
 
@@ -104,8 +106,13 @@ streamlit run dashboard/app.py
 #### Opción B: Limpiar para la Próxima Demo
 1. Activa Admin Mode (contraseña: `demo2025`)
 2. Haz clic en **"🗑️ Reset All Reviews"**
-3. Confirma que se limpiaron todas las reseñas
-4. Cierra Admin Mode
+3. El sistema eliminará:
+   - Todas las reseñas de MongoDB Atlas
+   - Todas las reseñas del archivo de backup local (`local_reviews_backup.jsonl`)
+4. Verás mensaje de confirmación con el total eliminado
+5. Cierra Admin Mode
+
+**Importante:** Este reset es COMPLETO y elimina todos los datos de reseñas de ambas fuentes de almacenamiento.
 
 ---
 
