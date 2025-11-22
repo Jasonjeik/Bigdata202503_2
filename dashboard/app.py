@@ -145,11 +145,12 @@ st.markdown("""
     }
 
     /* Primary Model label box (light gray background inside sidebar) */
+    /* Primary Model helper classes - keep transparent so label has no background */
     .primary-model-box {
-        background-color: #f2f2f2 !important; /* gris claro */
-        padding: 0.5rem;
-        border-radius: 0.375rem;
-        margin-bottom: 0.5rem;
+        background-color: transparent !important;
+        padding: 0 !important;
+        border-radius: 0 !important;
+        margin-bottom: 0.25rem !important;
     }
     .primary-model-label {
         font-weight: 600;
@@ -261,11 +262,8 @@ with st.sidebar:
     
     # Model selection
     st.subheader("Model Configuration")
-    # Render a styled box for the Primary Model label and use a collapsed label on the selectbox
-    st.markdown(
-        '<div class="primary-model-box"><span class="primary-model-label">Primary Model</span></div>',
-        unsafe_allow_html=True
-    )
+    # Primary Model label (no background)
+    st.markdown('Primary Model')
     selected_model = st.selectbox(
         "",
         ["DistilBERT (Recommended)", "LSTM Deep Learning", "Logistic Regression", "Random Forest"],
