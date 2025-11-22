@@ -271,6 +271,13 @@ if 'db_manager' not in st.session_state:
     st.session_state.db_manager = DatabaseManager()
 if 'model_manager' not in st.session_state:
     st.session_state.model_manager = ModelManager()
+    # Pre-cargar DistilBERT para validar pesos reales y evitar primer retardo en uso
+    try:
+        distil_loaded = st.session_state.model_manager.load_distilbert()
+        st.session_state.distilbert_ready = distil_loaded is not None
+    except Exception as e:
+        print(f"[Startup] DistilBERT preload failed: {e}")
+        st.session_state.distilbert_ready = False
 if 'movie_catalog' not in st.session_state:
     st.session_state.movie_catalog = MovieCatalog(st.session_state.db_manager)
 if 'current_page' not in st.session_state:
@@ -320,6 +327,12 @@ with st.sidebar:
     st.subheader("Model Configuration")
     # Primary Model label (no background)
     st.markdown('Primary Model')
+    # Mostrar estado de DistilBERT
+    if 'distilbert_ready' in st.session_state:
+        if st.session_state.distilbert_ready:
+            st.caption("✅ DistilBERT listo (pesos cargados)")
+        else:
+            st.caption("⚠ DistilBERT no disponible, se usarán fallbacks")
     selected_model = st.selectbox(
         "",
         ["DistilBERT (Recommended)", "LSTM Deep Learning", "Logistic Regression", "Random Forest"],
