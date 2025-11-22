@@ -506,7 +506,7 @@ class ModelManager:
             score = output.item()
         
         # LSTM outputs a sigmoid score between 0 and 1
-        # score > 0.5 = Positive, score <= 0.5 = Negative
+        # score > 0.45 = Positive, score <= 0.45 = Negative (adjusted threshold for better positive detection)
         # Convert to probabilities for both classes
         prob_positive = score
         prob_negative = 1 - score
@@ -516,7 +516,7 @@ class ModelManager:
                    prob_positive * np.log2(prob_positive + 1e-10))
         
         return {
-            'label': 'Positive' if score > 0.5 else 'Negative',
+            'label': 'Positive' if score > 0.45 else 'Negative',
             'score': score,
             'entropy': entropy,
             'prob_negative': prob_negative,
