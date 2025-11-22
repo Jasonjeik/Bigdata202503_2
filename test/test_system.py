@@ -130,7 +130,7 @@ def test_model_loading():
     print_info("\nTesting model loading...")
     
     try:
-        sys.path.insert(0, str(Path(__file__).parent))
+        sys.path.insert(0, str(Path(__file__).parent.parent / "dashboard"))
         from utils.models import ModelManager
         
         manager = ModelManager()
@@ -158,7 +158,7 @@ def test_app_structure():
     """Test if all required files exist"""
     print_info("\nTesting application structure...")
     
-    base_dir = Path(__file__).parent
+    base_dir = Path(__file__).parent.parent / "dashboard"
     
     required_files = [
         'app.py',
