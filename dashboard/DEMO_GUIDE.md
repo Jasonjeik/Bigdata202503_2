@@ -54,7 +54,7 @@ streamlit run dashboard/app.py
   - Timeline de reseñas
   - Distribución de calificaciones
   - Top películas más reseñadas
-  - **Toggle "Auto-refresh"**: Refresca automáticamente cada 10 segundos
+  - **Botón "🔄 Refresh Data"**: Actualiza manualmente para ver nuevas reseñas
 
 - **Model Comparison**: Comparación de modelos
   - Predicciones de múltiples modelos
@@ -69,9 +69,9 @@ streamlit run dashboard/app.py
 - Muestra el idioma original en los analytics
 
 #### Tiempo Real ⚡
-- Las reseñas aparecen instantáneamente para todos
-- Auto-refresh opcional en Live Analytics
-- Contador de participantes activos
+- Las reseñas se guardan instantáneamente en la base de datos compartida
+- Botón de refresh manual en Live Analytics para ver actualizaciones
+- Contador de participantes activos en tiempo real
 
 #### Múltiples Modelos de IA 🤖
 - **DistilBERT** (Recomendado) - Transformer de última generación
@@ -113,17 +113,18 @@ streamlit run dashboard/app.py
 
 ### Si no aparecen las reseñas de otros usuarios:
 - ✅ Verifica que "Database Connected" esté en verde (sidebar)
-- 🔄 Haz clic en "Refresh Data" en Live Analytics
-- 🔁 Activa "Auto-refresh" toggle
+- 🔄 Haz clic en el botón "🔄 Refresh Data" en Live Analytics
+- 🔁 Espera unos segundos y vuelve a hacer clic en Refresh (las reseñas se guardan inmediatamente pero requieren refresh manual)
 
 ### Si la base de datos está desconectada:
 - Verifica tu conexión a internet
 - Revisa las credenciales en `config.py`
 - Reinicia la aplicación
 
-### Si el auto-refresh no funciona:
-- Desactiva y vuelve a activar el toggle
-- Usa el botón manual "🔄 Refresh Data"
+### Para ver las reseñas más recientes:
+- Haz clic en el botón "🔄 Refresh Data" en Live Analytics
+- Las reseñas se guardan en la base de datos instantáneamente
+- El botón de refresh carga los datos más recientes de la DB
 
 ---
 
@@ -152,11 +153,10 @@ Para cambiar la contraseña de admin, edita en `app.py`:
 if admin_password == "demo2025":  # Cambia "demo2025" aquí
 ```
 
-### Tiempo de Auto-Refresh
-Para cambiar el intervalo de auto-refresh (actualmente 10 segundos):
-```python
-time.sleep(10)  # Cambia el número de segundos
-```
+### Notas Técnicas
+- Las reseñas se guardan directamente en MongoDB Atlas (compartidas entre sesiones)
+- El botón "🔄 Refresh Data" recarga los datos desde la base de datos
+- No hay auto-refresh automático para evitar consumo excesivo de recursos
 
 ---
 
@@ -195,7 +195,7 @@ La app imprime logs en la consola donde la ejecutaste
 - [ ] Internet estable
 - [ ] URL compartida con participantes (si demo remota)
 - [ ] Películas de ejemplo seleccionadas
-- [ ] Auto-refresh testeado
+- [ ] Botón de refresh manual probado
 
 ---
 
@@ -205,8 +205,8 @@ La app imprime logs en la consola donde la ejecutaste
 2. **Ve al Catálogo** y muestra las películas con posters
 3. **Haz una reseña de ejemplo** tú mismo primero
 4. **Invita a la audiencia** a participar
-5. **Cambia a Live Analytics** para ver resultados en tiempo real
-6. **Activa Auto-refresh** para efecto "wow"
+5. **Cambia a Live Analytics** para ver resultados
+6. **Haz clic en 🔄 Refresh Data** periódicamente para mostrar nuevas reseñas
 7. **Muestra Model Comparison** para destacar la IA
 8. **Finaliza con Model Architecture** para explicar la tecnología
 
